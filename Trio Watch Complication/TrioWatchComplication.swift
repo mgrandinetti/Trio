@@ -187,9 +187,6 @@ private extension Color {
 
 extension View {
     func widgetBackground(backgroundView: some View) -> some View {
-        if #available(watchOS 10.0, iOSApplicationExtension 17.0, iOS 17.0, *) {
-            return containerBackground(for: .widget) { backgroundView }
-        }
-        return background(backgroundView)
+        containerBackground(for: .widget) { backgroundView }
     }
 }

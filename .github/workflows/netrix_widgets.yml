@@ -1,6 +1,11 @@
 name: Verify Trio widgets
 on:
   workflow_dispatch:
+    inputs:
+      compile_app:
+        description: Compile iPhone and Watch after checking widget data and profiles
+        type: boolean
+        default: true
 permissions:
   contents: read
 jobs:
@@ -9,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          submodules: recursive
+          submodules: ${{ inputs.compile_app }}
       - name: Select Xcode
         run: sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
       - name: Check widget data handling
@@ -24,8 +29,11 @@ jobs:
           FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
           FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
           FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
-        run: bundle exec ruby scripts/widget_profile_check.rb | tee /tmp/widget-provisioning.txt
+        run: |
+          set -o pipefail
+          bundle exec ruby scripts/widget_profile_check.rb | tee /tmp/widget-provisioning.txt
       - name: Compile iPhone and Watch without signing
+        if: inputs.compile_app
         env:
           TEAMID: ${{ secrets.TEAMID }}
         run: |

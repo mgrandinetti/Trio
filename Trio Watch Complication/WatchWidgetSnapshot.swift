@@ -37,7 +37,8 @@ struct WatchWidgetSnapshot: Codable {
 
     static func sharedDefaults() -> UserDefaults? {
         guard let group = Bundle.main.object(forInfoDictionaryKey: "TrioAppGroup") as? String,
-              !group.isEmpty
+              !group.isEmpty,
+              !group.hasPrefix("$(")
         else { return nil }
         return UserDefaults(suiteName: group)
     }
