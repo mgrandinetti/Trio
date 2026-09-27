@@ -5,6 +5,10 @@ import WatchKit
 struct TrioMainWatchView: View {
     @Bindable var state: WatchState
 
+    init(state: WatchState) {
+        self.state = state
+    }
+
     // misc
     @State private var currentPage: Int = 0
     @State private var rotationDegrees: Double = 0.0
