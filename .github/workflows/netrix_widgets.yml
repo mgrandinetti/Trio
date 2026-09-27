@@ -1,0 +1,44 @@
+name: Verify Trio widgets
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
+      - name: Check widget data handling
+        run: |
+          swiftc Trio/Sources/Services/LiveActivity/TrioWidgetSnapshot.swift "Trio Watch Complication/WatchWidgetSnapshot.swift" scripts/widget-tests/main.swift -o /tmp/widget-tests
+          /tmp/widget-tests
+      - name: Install dependencies
+        run: bundle install
+      - name: Inspect widget provisioning
+        continue-on-error: true
+        env:
+          FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
+          FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
+          FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
+        run: bundle exec ruby scripts/widget_profile_check.rb | tee /tmp/widget-provisioning.txt
+      - name: Compile iPhone and Watch without signing
+        env:
+          TEAMID: ${{ secrets.TEAMID }}
+        run: |
+          set -o pipefail
+          xcodebuild -project Trio.xcodeproj -scheme Trio -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath /tmp/TrioWidgetBuild \
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$TEAMID" DEVELOPER_TEAM="$TEAMID" \
+            build > /tmp/widget-build.log 2>&1 || { tail -100 /tmp/widget-build.log; exit 1; }
+      - name: Upload verification logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: widget-verification
+          path: |
+            /tmp/widget-build.log
+            /tmp/widget-provisioning.txt

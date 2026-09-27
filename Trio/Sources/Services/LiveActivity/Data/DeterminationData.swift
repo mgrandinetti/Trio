@@ -1,6 +1,7 @@
 import Foundation
 
 struct DeterminationData {
+    let iob: Decimal?
     let cob: Int
     let tdd: Decimal
     let target: Decimal
