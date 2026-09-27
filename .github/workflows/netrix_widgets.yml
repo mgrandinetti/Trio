@@ -6,6 +6,10 @@ on:
         description: Compile iPhone and Watch after checking widget data and profiles
         type: boolean
         default: true
+      refresh_live_activity_profile:
+        description: Remove only the LiveActivity profile after assigning its App Group, so match regenerates it
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -24,11 +28,12 @@ jobs:
       - name: Install dependencies
         run: bundle install
       - name: Inspect widget provisioning
-        continue-on-error: true
+        continue-on-error: ${{ !inputs.refresh_live_activity_profile }}
         env:
           FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
           FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
           FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
+          REFRESH_LIVE_ACTIVITY_PROFILE: ${{ inputs.refresh_live_activity_profile }}
         run: |
           set -o pipefail
           bundle exec ruby scripts/widget_profile_check.rb | tee /tmp/widget-provisioning.txt
