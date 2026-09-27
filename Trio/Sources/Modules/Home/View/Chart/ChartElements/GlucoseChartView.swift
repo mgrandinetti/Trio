@@ -54,10 +54,7 @@ struct GlucoseChartView: ChartContent {
                     y: .value("Value", glucoseToDisplay)
                 )
                 .foregroundStyle(pointColor(for: item))
-                // Loop's chart keeps each CGM sample readable while the rest of the
-                // chart stays quiet. A small surface-coloured ring separates nearby
-                // readings from forecasts and treatment marks without changing data.
-                .symbolSize(42)
+                // Separate CGM samples from forecasts and treatment marks.
                 .symbol {
                     Circle()
                         .fill(Color.chart)
@@ -66,6 +63,7 @@ struct GlucoseChartView: ChartContent {
                                 .fill(pointColor(for: item))
                                 .padding(1.5)
                         )
+                        .frame(width: 6.5, height: 6.5)
                 }
             }
 

@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          submodules: ${{ inputs.compile_app }}
+          submodules: ${{ inputs.compile_app && 'recursive' || 'false' }}
       - name: Select Xcode
         run: sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
       - name: Check widget data handling
@@ -38,7 +38,7 @@ jobs:
           TEAMID: ${{ secrets.TEAMID }}
         run: |
           set -o pipefail
-          xcodebuild -project Trio.xcodeproj -scheme Trio -configuration Release \
+          xcodebuild -workspace Trio.xcworkspace -scheme Trio -configuration Release \
             -destination 'generic/platform=iOS' -derivedDataPath /tmp/TrioWidgetBuild \
             CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$TEAMID" DEVELOPER_TEAM="$TEAMID" \
             build > /tmp/widget-build.log 2>&1 || { tail -100 /tmp/widget-build.log; exit 1; }

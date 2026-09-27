@@ -453,6 +453,44 @@ import WidgetKit
         }
     }
 
+    /// Keeps the SwiftUI WatchConnectivity background task alive until the
+    /// connectivity queue has drained, then persists any debounced CGM state.
+    /// The short deadline prevents consuming the watchOS background budget if
+    /// activation or delivery fails.
+    @MainActor func finishBackgroundConnectivityUpdate() async {
+        let deadline = Date().addingTimeInterval(8)
+
+        while !Task.isCancelled, Date() < deadline {
+            if let session,
+               session.activationState == .activated,
+               !session.hasContentPending
+            {
+                // Yield once so a delegate callback already enqueued on the
+                // main actor can merge its payload before it is persisted.
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                if session.hasContentPending { continue }
+                flushPendingWatchState()
+                return
+            }
+
+            do {
+                try await Task.sleep(nanoseconds: 100_000_000)
+            } catch {
+                break
+            }
+        }
+
+        // Preserve data that did arrive before a cancellation or timeout.
+        flushPendingWatchState()
+    }
+
+    @MainActor private func flushPendingWatchState() {
+        finalizeWorkItem?.cancel()
+        finalizeWorkItem = nil
+        guard !pendingData.isEmpty else { return }
+        finalizePendingData()
+    }
+
     /// Updates the UI properties
     private func processRawDataForWatchState(_ message: [String: Any]) {
         Task {
