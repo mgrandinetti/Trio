@@ -72,8 +72,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
             .sink { [weak self] _ in
                 guard let self = self else { return }
                 // Skip if no watch is paired or app not installed
-                guard let session = self.session, session.isPaired, session.isReachable,
-                      session.isWatchAppInstalled else { return }
+                guard let session = self.session, session.isPaired, session.isWatchAppInstalled else { return }
                 Task {
                     let state = await self.setupWatchState()
                     await self.sendDataToWatch(state)
@@ -110,7 +109,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
         coreDataPublisher?.filteredByEntityName("GlucoseStored").sink { [weak self] _ in
             guard let self = self else { return }
             // Skip if no watch is paired or app not installed
-            guard let session = self.session, session.isPaired, session.isReachable, session.isWatchAppInstalled else { return }
+            guard let session = self.session, session.isPaired, session.isWatchAppInstalled else { return }
             Task {
                 let state = await self.setupWatchState()
                 await self.sendDataToWatch(state)
@@ -172,8 +171,8 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
     /// Prepares the current state data to be sent to the Watch
     /// - Returns: WatchState containing current glucose readings and trends and determination infos for displaying cob and iob in the view
     func setupWatchState() async -> WatchState {
-        // Check if a watch is paired and reachable before doing expensive calculations
-        guard let session = session, session.isPaired, session.isReachable, session.isWatchAppInstalled else {
+        // Background complication updates do not require the Watch app to be foregrounded.
+        guard let session = session, session.isPaired, session.isWatchAppInstalled else {
             debug(.watchManager, "⌚️❌ Skipping setupWatchState - No Watch is paired or app not installed")
             return WatchState(date: Date())
         }
@@ -594,15 +593,19 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
 
         let message: [String: Any] = watchStateToDictionary(from: state)
 
-        // if session is reachable, it means watch App is in the foreground -> send watchState as message
-        // if session is not reachable, it means it's in background -> send watchState as userInfo
+        // Keep the latest read-only state available when the Watch app is suspended.
+        // Application context replaces older snapshots and does not carry therapy requests.
+        do {
+            try session.updateApplicationContext([WatchMessageKeys.watchState: message])
+        } catch {
+            debug(.watchManager, "❌ Error updating Watch application context: \(error)")
+        }
+
+        // Send an immediate UI update only while the Watch app is foregrounded.
         if session.isReachable {
             session.sendMessage([WatchMessageKeys.watchState: message], replyHandler: nil) { error in
                 debug(.watchManager, "❌ Error sending watch state: \(error)")
             }
-        } else {
-            session.transferUserInfo([WatchMessageKeys.watchState: message])
-            debug(.watchManager, "📤 Transferred new WatchState snapshot via userInfo")
         }
         WatchStateSnapshot.saveLatestDateToDisk(state.date)
     }

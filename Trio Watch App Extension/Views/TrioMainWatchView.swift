@@ -3,7 +3,11 @@ import SwiftUI
 import WatchKit
 
 struct TrioMainWatchView: View {
-    @State private var state = WatchState()
+    @Bindable var state: WatchState
+
+    init(state: WatchState) {
+        self.state = state
+    }
 
     // misc
     @State private var currentPage: Int = 0
@@ -267,5 +271,5 @@ struct TrioMainWatchView: View {
 }
 
 #Preview {
-    TrioMainWatchView()
+    TrioMainWatchView(state: WatchState())
 }

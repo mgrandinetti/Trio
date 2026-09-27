@@ -285,7 +285,7 @@ struct ChartLegendView: View {
                     "To modify how the forecast is displayed, go to Settings > Features > User Interface > Forecast Display Type."
                 )
             },
-            color: Color.blue.opacity(0.5)
+            color: Color.blue.opacity(0.18)
         )
     }
 }

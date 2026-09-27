@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import WatchConnectivity
+import WidgetKit
 
 /// WatchState manages the communication between the Watch app and the iPhone app using WatchConnectivity.
 /// It handles glucose data synchronization and sending treatment requests (bolus, carbs) to the phone.
@@ -228,6 +229,12 @@ import WatchConnectivity
         handleIncomingWatchStatePayload(userInfo)
     }
 
+    /// Receives the latest read-only state while the Watch app was suspended.
+    /// `updateApplicationContext` coalesces old CGM snapshots before delivery.
+    func session(_: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        handleIncomingWatchStatePayload(applicationContext)
+    }
+
     /// Shared path for watch-state payloads from either delegate method.
     /// Enforces the freshness contract in one place so the two delivery paths
     /// can't drift.
@@ -429,7 +436,9 @@ import WatchConnectivity
         }
 
         // Actually set your main UI properties here
-        processRawDataForWatchState(pendingData)
+        let receivedData = pendingData
+        processRawDataForWatchState(receivedData)
+        saveWidgetSnapshot(from: receivedData)
 
         // Clear
         pendingData.removeAll()
@@ -442,6 +451,44 @@ import WatchConnectivity
         Task {
             await WatchLogger.shared.log("✅ Watch UI update complete")
         }
+    }
+
+    /// Keeps the SwiftUI WatchConnectivity background task alive until the
+    /// connectivity queue has drained, then persists any debounced CGM state.
+    /// The short deadline prevents consuming the watchOS background budget if
+    /// activation or delivery fails.
+    @MainActor func finishBackgroundConnectivityUpdate() async {
+        let deadline = Date().addingTimeInterval(8)
+
+        while !Task.isCancelled, Date() < deadline {
+            if let session,
+               session.activationState == .activated,
+               !session.hasContentPending
+            {
+                // Yield once so a delegate callback already enqueued on the
+                // main actor can merge its payload before it is persisted.
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                if session.hasContentPending { continue }
+                flushPendingWatchState()
+                return
+            }
+
+            do {
+                try await Task.sleep(nanoseconds: 100_000_000)
+            } catch {
+                break
+            }
+        }
+
+        // Preserve data that did arrive before a cancellation or timeout.
+        flushPendingWatchState()
+    }
+
+    @MainActor private func flushPendingWatchState() {
+        finalizeWorkItem?.cancel()
+        finalizeWorkItem = nil
+        guard !pendingData.isEmpty else { return }
+        finalizePendingData()
     }
 
     /// Updates the UI properties
@@ -585,4 +632,34 @@ import WatchConnectivity
             forecastLines = forecastPayload[WatchMessageKeys.forecastLines] as? [String: [Double]] ?? [:]
         }
     }
+
+    /// Shares only a self-consistent CGM payload with the complication. A partial
+    /// WatchConnectivity update cannot pair a new display value with old readings.
+    private func saveWidgetSnapshot(from message: [String: Any]) {
+        guard let glucoseData = message[WatchMessageKeys.glucoseValues] as? [[String: Any]] else { return }
+        let glucosePoints = glucoseData.compactMap { data -> WatchWidgetSnapshot.GlucosePoint? in
+            guard let glucose = data["glucose"] as? Double,
+                  let timestamp = data["date"] as? TimeInterval
+            else { return nil }
+            return .init(date: Date(timeIntervalSince1970: timestamp), glucose: glucose)
+        }
+        .sorted { $0.date < $1.date }
+
+        let currentGlucose = message[WatchMessageKeys.currentGlucose] as? String
+        let snapshot = WatchWidgetSnapshot(
+            glucose: currentGlucose?.nonEmpty,
+            trend: (message[WatchMessageKeys.trend] as? String)?.nonEmpty,
+            delta: (message[WatchMessageKeys.delta] as? String)?.nonEmpty,
+            glucoseColor: (message[WatchMessageKeys.currentGlucoseColorString] as? String)?.nonEmpty,
+            glucoseDate: glucosePoints.last?.date,
+            units: (message[WatchMessageKeys.units] as? String)?.nonEmpty,
+            glucosePoints: Array(glucosePoints.suffix(36))
+        )
+        snapshot.save(to: WatchWidgetSnapshot.sharedDefaults())
+        WidgetCenter.shared.reloadTimelines(ofKind: "TrioWatchComplication")
+    }
+}
+
+private extension String {
+    var nonEmpty: String? { isEmpty || self == "--" ? nil : self }
 }

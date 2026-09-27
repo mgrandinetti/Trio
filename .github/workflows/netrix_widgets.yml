@@ -1,6 +1,15 @@
 name: Verify Trio widgets
 on:
   workflow_dispatch:
+    inputs:
+      compile_app:
+        description: Compile iPhone and Watch after checking widget data and profiles
+        type: boolean
+        default: true
+      refresh_live_activity_profile:
+        description: Remove only the LiveActivity profile after assigning its App Group, so match regenerates it
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -9,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          submodules: recursive
+          submodules: ${{ inputs.compile_app && 'recursive' || 'false' }}
       - name: Select Xcode
         run: sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
       - name: Check widget data handling
@@ -19,18 +28,22 @@ jobs:
       - name: Install dependencies
         run: bundle install
       - name: Inspect widget provisioning
-        continue-on-error: true
+        continue-on-error: ${{ !inputs.refresh_live_activity_profile }}
         env:
           FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
           FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
           FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
-        run: bundle exec ruby scripts/widget_profile_check.rb | tee /tmp/widget-provisioning.txt
+          REFRESH_LIVE_ACTIVITY_PROFILE: ${{ inputs.refresh_live_activity_profile }}
+        run: |
+          set -o pipefail
+          bundle exec ruby scripts/widget_profile_check.rb | tee /tmp/widget-provisioning.txt
       - name: Compile iPhone and Watch without signing
+        if: inputs.compile_app
         env:
           TEAMID: ${{ secrets.TEAMID }}
         run: |
           set -o pipefail
-          xcodebuild -project Trio.xcodeproj -scheme Trio -configuration Release \
+          xcodebuild -workspace Trio.xcworkspace -scheme Trio -configuration Release \
             -destination 'generic/platform=iOS' -derivedDataPath /tmp/TrioWidgetBuild \
             CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$TEAMID" DEVELOPER_TEAM="$TEAMID" \
             build > /tmp/widget-build.log 2>&1 || { tail -100 /tmp/widget-build.log; exit 1; }

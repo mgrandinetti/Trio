@@ -54,8 +54,17 @@ struct GlucoseChartView: ChartContent {
                     y: .value("Value", glucoseToDisplay)
                 )
                 .foregroundStyle(pointColor(for: item))
-                .symbolSize(20)
-                .symbol(.circle)
+                // Separate CGM samples from forecasts and treatment marks.
+                .symbol {
+                    Circle()
+                        .fill(Color.chart)
+                        .overlay(
+                            Circle()
+                                .fill(pointColor(for: item))
+                                .padding(1.5)
+                        )
+                        .frame(width: 6.5, height: 6.5)
+                }
             }
 
             if isSmoothingEnabled, let smoothedGlucose = item.smoothedGlucose, smoothedGlucose != 0 {
@@ -67,6 +76,7 @@ struct GlucoseChartView: ChartContent {
                     series: .value("Type", "Smoothed")
                 )
                 .foregroundStyle(Color.secondary)
+                .lineStyle(.init(lineWidth: 1, dash: [3, 3]))
             }
         }
     }

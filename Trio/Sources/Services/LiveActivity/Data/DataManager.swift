@@ -95,6 +95,7 @@ extension LiveActivityManager {
             }
 
             return DeterminationData(
+                iob: determination.iob?.decimalValue,
                 cob: Int(determination.cob),
                 tdd: tddValue,
                 target: determination.currentTarget?.decimalValue ?? 0,

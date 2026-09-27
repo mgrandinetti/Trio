@@ -788,6 +788,7 @@ struct StaticYAxisChart: View {
         AxisMarks(position: .trailing) { value in
             if displayYgridLines {
                 AxisGridLine(stroke: .init(lineWidth: 0.5, dash: [2, 3]))
+                    .foregroundStyle(Color.secondary.opacity(0.25))
             } else {
                 AxisGridLine(stroke: .init(lineWidth: 0, dash: [2, 3]))
             }
@@ -796,7 +797,9 @@ struct StaticYAxisChart: View {
                 if units == .mmolL {
                     AxisTick(length: 7, stroke: .init(lineWidth: 7)).foregroundStyle(Color.clear)
                 }
-                AxisValueLabel().font(.footnote).foregroundStyle(Color.primary)
+                AxisValueLabel()
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .foregroundStyle(Color.primary)
             }
         }
     }
@@ -918,6 +921,7 @@ extension MainChartCanvas {
 
         return Chart {
             drawCurrentTimeMarker()
+            drawGlucoseRangeBand()
             drawThresholdLines()
 
             GlucoseTargetsView(
@@ -987,6 +991,20 @@ extension MainChartCanvas {
             "zt": Color.zt,
             "cob": Color.orange
         ])
+    }
+
+    /// A quiet background using the existing in-range thresholds.
+    @ChartContentBuilder private func drawGlucoseRangeBand() -> some ChartContent {
+        let lower = units == .mgdL ? lowGlucose : lowGlucose.asMmolL
+        let upper = units == .mgdL ? highGlucose : highGlucose.asMmolL
+
+        RectangleMark(
+            xStart: .value("Range start", windowStart, unit: .second),
+            xEnd: .value("Range end", windowEnd, unit: .second),
+            yStart: .value("In range low", lower),
+            yEnd: .value("In range high", upper)
+        )
+        .foregroundStyle(Color.loopGreen.opacity(0.08))
     }
 }
 

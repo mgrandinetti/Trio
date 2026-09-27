@@ -4,6 +4,7 @@ import CoreData
 import Foundation
 import Swinject
 import UIKit
+import WidgetKit
 
 @available(iOS 16.2, *) private struct ActiveActivity {
     let activity: Activity<LiveActivityAttributes>
@@ -400,7 +401,48 @@ final class LiveActivityData: ObservableObject {
 }
 
 @available(iOS 16.2, *) extension LiveActivityManager {
+    @MainActor private func updateStatusWidget() {
+        let glucose = data.glucoseFromPersistence ?? []
+        let latest = glucose.first
+        let previous = glucose.dropFirst().first
+        let delta: String?
+        if let latest, let previous,
+           latest.date.timeIntervalSince(previous.date) > 0,
+           latest.date.timeIntervalSince(previous.date) <= 6 * 60
+        {
+            delta = LiveActivityAttributes.ContentState.formatGlucose(
+                latest.glucose - previous.glucose, units: settings.units, forceSign: true
+            )
+        } else {
+            delta = nil
+        }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 1
+        let snapshot = TrioWidgetSnapshot(
+            glucose: latest.map {
+                LiveActivityAttributes.ContentState.formatGlucose($0.glucose, units: settings.units, forceSign: false)
+            } ?? "--",
+            glucoseDate: latest?.date,
+            trend: latest?.direction?.symbol,
+            delta: delta,
+            unit: settings.units.rawValue,
+            readings: glucose.map { TrioWidgetSnapshot.Reading(date: $0.date, value: Double($0.glucose)) },
+            low: NSDecimalNumber(decimal: settings.low).doubleValue,
+            high: NSDecimalNumber(decimal: settings.high).doubleValue,
+            iob: data.determination?.iob.flatMap { formatter.string(from: NSDecimalNumber(decimal: $0)) },
+            iobDate: data.determination?.date,
+            cob: data.determination.map { String($0.cob) },
+            determinationDate: data.determination?.date
+        )
+        if snapshot.save() {
+            WidgetCenter.shared.reloadTimelines(ofKind: "TrioStatusWidget")
+        }
+    }
+
     @MainActor func pushCurrentContent() async {
+        // Widgets continue to update even when Live Activities are disabled or no determination exists.
+        updateStatusWidget()
         guard let glucose = data.glucoseFromPersistence, let bg = glucose.first else {
             debug(.default, "[LiveActivityManager] pushCurrentContent: no current glucose data available")
             return
