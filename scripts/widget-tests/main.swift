@@ -45,3 +45,18 @@ check(newerDetermination.value == 1 && newerDetermination.date == now, "Newer de
 let undatedFile = TrioWidgetSnapshot.latestIOB(determinationValue: 1, determinationDate: now.addingTimeInterval(-400), fileValue: 2, fileDate: nil)
 check(undatedFile.value == 1 && !TrioWidgetSnapshot.isFresh(undatedFile.date, at: now), "Do not refresh timestamp or use undated file IOB")
 print("Widget IOB source selection checks passed")
+
+let diagnosticSuite = "TrioWidgetDiagnosticsTests." + UUID().uuidString
+let diagnosticDefaults = UserDefaults(suiteName: diagnosticSuite)!
+defer { diagnosticDefaults.removePersistentDomain(forName: diagnosticSuite) }
+let sourceDate = now.addingTimeInterval(-400)
+TrioWidgetDiagnostics.record(.snapshotSaved, glucoseDate: sourceDate, at: now, defaults: diagnosticDefaults)
+TrioWidgetDiagnostics.record(.timelineRead, glucoseDate: sourceDate, at: now.addingTimeInterval(30), defaults: diagnosticDefaults)
+let savedEvent = diagnosticDefaults.dictionary(forKey: "TrioWidgetDiagnostics.v1.snapshotSaved") as! [String: String]
+let readEvent = diagnosticDefaults.dictionary(forKey: "TrioWidgetDiagnostics.v1.timelineRead") as! [String: String]
+check(savedEvent["glucose"] == readEvent["glucose"], "Diagnostic events must preserve stale source time")
+check(savedEvent["event"] != readEvent["event"], "App and extension events must remain independently readable")
+check(diagnosticDefaults.data(forKey: TrioWidgetSnapshot.storageKey) == nil, "Diagnostics must not alter clinical snapshot storage")
+check(TrioWidgetDiagnostics.report(defaults: diagnosticDefaults).contains("reloadRequested: not recorded"), "Missing events must remain distinguishable")
+check(TrioWidgetDiagnostics.report(defaults: nil).contains("unavailable"), "Missing App Group must be reported")
+print("Widget diagnostic isolation checks passed")

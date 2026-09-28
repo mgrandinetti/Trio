@@ -69,3 +69,42 @@ struct TrioWidgetSnapshot: Codable, Equatable {
         unit == "mmol/L" ? value * 0.0555 : value
     }
 }
+
+/// Local timing metadata only. Separate keys prevent the app and extension overwriting each other.
+enum TrioWidgetDiagnostics {
+    enum Event: String, CaseIterable {
+        case glucoseObserved, glucoseLoaded, glucoseLoadFailed
+        case determinationLoaded, determinationLoadFailed
+        case appActive, appBackground, snapshotSaved, reloadRequested, timelineRead
+    }
+
+    static func record(
+        _ event: Event, glucoseDate: Date? = nil, iobDate: Date? = nil, cobDate: Date? = nil,
+        at date: Date = Date(), defaults: UserDefaults? = TrioWidgetSnapshot.defaults
+    ) {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var fields = ["event": formatter.string(from: date)]
+        for (key, timestamp) in [("glucose", glucoseDate), ("iob", iobDate), ("cob", cobDate)] {
+            fields[key] = timestamp.map { formatter.string(from: $0) } ?? "missing"
+        }
+        defaults?.set(fields, forKey: "TrioWidgetDiagnostics.v1." + event.rawValue)
+    }
+
+    static func report(defaults: UserDefaults? = TrioWidgetSnapshot.defaults) -> String {
+        guard let defaults else { return "Widget diagnostics: App Group unavailable" }
+        var lines = ["Widget diagnostics v1 (UTC)", "Latest event of each kind; source timestamps, no measurement values."]
+        for event in Event.allCases {
+            guard let fields = defaults.dictionary(forKey: "TrioWidgetDiagnostics.v1." + event.rawValue)
+                as? [String: String] else {
+                lines.append(event.rawValue + ": not recorded")
+                continue
+            }
+            lines.append(event.rawValue + ": " + (fields["event"] ?? "missing"))
+            for key in ["glucose", "iob", "cob"] where fields[key] != "missing" {
+                lines.append("  " + key + ": " + (fields[key] ?? "missing"))
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+}

@@ -23,6 +23,10 @@ struct TrioStatusProvider: TimelineProvider {
     func getTimeline(in _: Context, completion: @escaping (Timeline<TrioStatusEntry>) -> Void) {
         let now = Date()
         let snapshot = TrioWidgetSnapshot.load()
+        TrioWidgetDiagnostics.record(
+            .timelineRead, glucoseDate: snapshot?.glucoseDate, iobDate: snapshot?.iobDate,
+            cobDate: snapshot?.determinationDate
+        )
         var dates = [now]
         // Expire each metric even when the phone stops delivering updates.
         for timestamp in [snapshot?.glucoseDate, snapshot?.iobDate, snapshot?.determinationDate].compactMap({ $0 }) {
