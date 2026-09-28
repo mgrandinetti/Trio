@@ -75,15 +75,13 @@ struct TrioStatusWidgetView: View {
                 Image(systemName: "drop.fill").foregroundStyle(.blue)
                 Text("Trio").fontWeight(.semibold)
                 Spacer(minLength: 4)
-                if family == .systemMedium {
-                    readingTime
-                }
+                readingTime
             }
             .font(.caption2)
 
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
-                    if !entry.isFresh, historicalGlucose != nil {
+                    if family == .systemMedium, !entry.isFresh, historicalGlucose != nil {
                         Text("Ultimo valore").font(.caption2).foregroundStyle(.secondary)
                     }
                     glucoseRow
@@ -94,9 +92,6 @@ struct TrioStatusWidgetView: View {
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if family == .systemSmall {
-                        readingTime
                     }
                 }
                 if family == .systemMedium, let snapshot = entry.snapshot {
