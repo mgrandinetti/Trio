@@ -177,10 +177,23 @@ struct TrioStatusWidgetView: View {
     }
 
     private func metric(_ title: String, value: String?, date: Date?, unit: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(title).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
-            Text("\(TrioWidgetSnapshot.isFresh(date, at: entry.date) ? (value ?? "--") : "--") \(unit)")
-                .font(.caption.weight(.semibold)).monospacedDigit().lineLimit(1)
+        let displayed = TrioWidgetSnapshot.historicalMetric(value, date: date, at: entry.date)
+        let fresh = TrioWidgetSnapshot.isFresh(date, at: entry.date)
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(title).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                Text("\(displayed ?? "--") \(unit)")
+                    .font(.caption.weight(.semibold)).monospacedDigit().lineLimit(1)
+                    .foregroundStyle(fresh ? Color.primary : Color.secondary)
+            }
+            if displayed != nil, let date {
+                Text(date, style: .time)
+                    .font(.system(size: 9)).monospacedDigit().foregroundStyle(.secondary)
+                if !fresh {
+                    Text("Non aggiornato")
+                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

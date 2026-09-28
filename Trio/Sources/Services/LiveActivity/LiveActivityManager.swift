@@ -457,6 +457,16 @@ final class LiveActivityData: ObservableObject {
             determinationValue: data.determination?.iob, determinationDate: data.determination?.date,
             fileValue: fileIOB?.iob, fileDate: fileIOB?.time
         )
+        let previousSnapshot = TrioWidgetSnapshot.load()
+        let now = Date()
+        let retainedIOB = TrioWidgetSnapshot.retainedMetric(
+            value: widgetIOB.value.flatMap { formatter.string(from: NSDecimalNumber(decimal: $0)) },
+            date: widgetIOB.date, previousValue: previousSnapshot?.iob, previousDate: previousSnapshot?.iobDate, at: now
+        )
+        let retainedCOB = TrioWidgetSnapshot.retainedMetric(
+            value: data.determination.map { String($0.cob) }, date: data.determination?.date,
+            previousValue: previousSnapshot?.cob, previousDate: previousSnapshot?.determinationDate, at: now
+        )
         let snapshot = TrioWidgetSnapshot(
             glucose: latest.map {
                 LiveActivityAttributes.ContentState.formatGlucose($0.glucose, units: settings.units, forceSign: false)
@@ -468,10 +478,10 @@ final class LiveActivityData: ObservableObject {
             readings: glucose.map { TrioWidgetSnapshot.Reading(date: $0.date, value: Double($0.glucose)) },
             low: NSDecimalNumber(decimal: settings.low).doubleValue,
             high: NSDecimalNumber(decimal: settings.high).doubleValue,
-            iob: widgetIOB.value.flatMap { formatter.string(from: NSDecimalNumber(decimal: $0)) },
-            iobDate: widgetIOB.date,
-            cob: data.determination.map { String($0.cob) },
-            determinationDate: data.determination?.date
+            iob: retainedIOB.value,
+            iobDate: retainedIOB.date,
+            cob: retainedCOB.value,
+            determinationDate: retainedCOB.date
         )
         let changed = snapshot.save()
         // An unchanged App Group snapshot does not mean WidgetKit has rendered it.
