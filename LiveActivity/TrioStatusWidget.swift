@@ -49,30 +49,18 @@ struct TrioStatusWidgetView: View {
                     Text(entry.isFresh ? entry.trend : "Trio").font(.caption2)
                 }
             case .accessoryRectangular:
-                VStack(alignment: .leading, spacing: 2) {
-                    glucoseRow
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text(entry.glucose)
+                            .font(.system(.title2, design: .rounded, weight: .semibold))
+                            .monospacedDigit()
+                        Text(entry.trend).font(.callout)
+                        Text(entry.snapshot?.unit ?? "").font(.caption2).foregroundStyle(.secondary)
+                    }
                     freshnessLabel
                 }
             default:
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        HStack {
-                            Image(systemName: "drop.circle").foregroundStyle(.blue)
-                            Text("Trio").font(.caption.weight(.semibold))
-                            Spacer(minLength: 0)
-                        }
-                        glucoseRow
-                        freshnessLabel
-                        HStack(spacing: 12) {
-                            metric("IOB", value: entry.snapshot?.iob, date: entry.snapshot?.iobDate, unit: "U")
-                            metric("COB", value: entry.snapshot?.cob, date: entry.snapshot?.determinationDate, unit: "g")
-                        }
-                    }
-                    if family == .systemMedium, let snapshot = entry.snapshot {
-                        glucoseChart(snapshot)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
+                homeWidget
             }
         }
         .minimumScaleFactor(0.65)
@@ -81,13 +69,50 @@ struct TrioStatusWidgetView: View {
         .privacySensitive()
     }
 
+    private var homeWidget: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "drop.fill").foregroundStyle(.blue)
+                Text("Trio").fontWeight(.semibold)
+                Spacer(minLength: 4)
+                if family == .systemMedium {
+                    freshnessLabel
+                }
+            }
+            .font(.caption2)
+
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    glucoseRow
+                    if family == .systemSmall {
+                        freshnessLabel
+                    }
+                }
+                if family == .systemMedium, let snapshot = entry.snapshot {
+                    glucoseChart(snapshot)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(maxHeight: .infinity, alignment: .center)
+
+            Divider()
+            HStack(spacing: 12) {
+                metric("IOB", value: entry.snapshot?.iob, date: entry.snapshot?.iobDate, unit: "U")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                metric("COB", value: entry.snapshot?.cob, date: entry.snapshot?.determinationDate, unit: "g")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
     private var glucoseRow: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(entry.glucose)
-                    .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                    .font(.system(size: family == .systemMedium ? 40 : 34, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
                     .monospacedDigit()
-                Text(entry.trend).font(.title3)
+                Text(entry.trend).font(.title3.weight(.medium))
             }
             .foregroundStyle(entry.isFresh ? Color.blue : Color.secondary)
             Text(entry.snapshot?.unit ?? " ").font(.caption2).foregroundStyle(.secondary)
@@ -95,9 +120,10 @@ struct TrioStatusWidgetView: View {
     }
 
     private var freshnessLabel: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 5) {
             if entry.isFresh {
                 Text(entry.snapshot?.delta ?? "").monospacedDigit()
+                Text("·")
             } else {
                 Image(systemName: "clock.badge.exclamationmark")
             }
@@ -108,15 +134,16 @@ struct TrioStatusWidgetView: View {
             }
         }
         .font(.caption2)
+        .lineLimit(1)
         .foregroundStyle(.secondary)
         .accessibilityLabel(entry.isFresh ? "Ultima lettura" : "Dati glicemia non aggiornati")
     }
 
     private func metric(_ title: String, value: String?, date: Date?, unit: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.caption2).foregroundStyle(.secondary)
             Text("\(TrioWidgetSnapshot.isFresh(date, at: entry.date) ? (value ?? "--") : "--") \(unit)")
-                .font(.caption.weight(.medium)).monospacedDigit().lineLimit(1)
+                .font(.caption.weight(.semibold)).monospacedDigit().lineLimit(1)
         }
     }
 
