@@ -6,7 +6,6 @@ extension AppDiagnostics {
         let resolver: Resolver
 
         @State var state = StateModel()
-        @State private var widgetReport = ""
 
         @Environment(\.colorScheme) var colorScheme
         @Environment(AppState.self) var appState
@@ -14,17 +13,6 @@ extension AppDiagnostics {
 
         var body: some View {
             List {
-                Section("Diagnostica widget locale") {
-                    Text("Orari tecnici salvati sul dispositivo. Nessun invio automatico. La lettura della timeline non conferma quando iOS mostra il widget sullo schermo.")
-                        .font(.footnote)
-                    Text(widgetReport)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                    Button("Rileggi diagnostica") { widgetReport = TrioWidgetDiagnostics.report() }
-                    ShareLink("Condividi diagnostica widget", item: widgetReport)
-                }
-                .onAppear { widgetReport = TrioWidgetDiagnostics.report() }
-
                 Section(
                     header: Text("Anonymized Data Sharing"),
                     content: {
