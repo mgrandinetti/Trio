@@ -52,6 +52,19 @@ struct TrioWidgetSnapshot: Codable, Equatable {
         return glucose
     }
 
+    /// Match the app's IOB source ordering while retaining the source timestamp.
+    static func latestIOB(
+        determinationValue: Decimal?, determinationDate: Date?, fileValue: Decimal?, fileDate: Date?
+    ) -> (value: Decimal?, date: Date?) {
+        if let fileValue, let fileDate {
+            if let determinationValue, let determinationDate, determinationDate >= fileDate {
+                return (determinationValue, determinationDate)
+            }
+            return (fileValue, fileDate)
+        }
+        return (determinationValue, determinationDate)
+    }
+
     func displayValue(_ value: Double) -> Double {
         unit == "mmol/L" ? value * 0.0555 : value
     }

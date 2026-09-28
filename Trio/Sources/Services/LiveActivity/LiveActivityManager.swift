@@ -108,13 +108,17 @@ final class LiveActivityData: ObservableObject {
         notificationCenter
             .addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil) { [weak self] _ in
                 Task { @MainActor in
-                    await self?.pushCurrentContent()
+                    await self?.pushCurrentContent(forceWidgetReload: true)
                 }
             }
         notificationCenter
             .addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { [weak self] _ in
                 Task { @MainActor in
-                    await self?.pushCurrentContent()
+                    guard let self else { return }
+                    // Recover persisted updates that may have arrived while the app was suspended.
+                    await self.loadGlucose()
+                    await self.loadDetermination()
+                    await self.pushCurrentContent(forceWidgetReload: true)
                 }
             }
         notificationCenter.addObserver(
@@ -401,7 +405,7 @@ final class LiveActivityData: ObservableObject {
 }
 
 @available(iOS 16.2, *) extension LiveActivityManager {
-    @MainActor private func updateStatusWidget() {
+    @MainActor private func updateStatusWidget(forceReload: Bool) {
         let glucose = data.glucoseFromPersistence ?? []
         let latest = glucose.first
         let previous = glucose.dropFirst().first
@@ -419,6 +423,11 @@ final class LiveActivityData: ObservableObject {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 1
+        let fileIOB = storage.retrieve(OpenAPS.Monitor.iob, as: [IOBEntry].self)?.first
+        let widgetIOB = TrioWidgetSnapshot.latestIOB(
+            determinationValue: data.determination?.iob, determinationDate: data.determination?.date,
+            fileValue: fileIOB?.iob, fileDate: fileIOB?.time
+        )
         let snapshot = TrioWidgetSnapshot(
             glucose: latest.map {
                 LiveActivityAttributes.ContentState.formatGlucose($0.glucose, units: settings.units, forceSign: false)
@@ -430,19 +439,21 @@ final class LiveActivityData: ObservableObject {
             readings: glucose.map { TrioWidgetSnapshot.Reading(date: $0.date, value: Double($0.glucose)) },
             low: NSDecimalNumber(decimal: settings.low).doubleValue,
             high: NSDecimalNumber(decimal: settings.high).doubleValue,
-            iob: data.determination?.iob.flatMap { formatter.string(from: NSDecimalNumber(decimal: $0)) },
-            iobDate: data.determination?.date,
+            iob: widgetIOB.value.flatMap { formatter.string(from: NSDecimalNumber(decimal: $0)) },
+            iobDate: widgetIOB.date,
             cob: data.determination.map { String($0.cob) },
             determinationDate: data.determination?.date
         )
-        if snapshot.save() {
+        let changed = snapshot.save()
+        // An unchanged App Group snapshot does not mean WidgetKit has rendered it.
+        if changed || forceReload {
             WidgetCenter.shared.reloadTimelines(ofKind: "TrioStatusWidget")
         }
     }
 
-    @MainActor func pushCurrentContent() async {
+    @MainActor func pushCurrentContent(forceWidgetReload: Bool = false) async {
         // Widgets continue to update even when Live Activities are disabled or no determination exists.
-        updateStatusWidget()
+        updateStatusWidget(forceReload: forceWidgetReload)
         guard let glucose = data.glucoseFromPersistence, let bg = glucose.first else {
             debug(.default, "[LiveActivityManager] pushCurrentContent: no current glucose data available")
             return

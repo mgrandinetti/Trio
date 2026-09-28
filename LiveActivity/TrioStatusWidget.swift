@@ -120,10 +120,16 @@ struct TrioStatusWidgetView: View {
                     Text("Lettura")
                     Text(date, style: .time).monospacedDigit()
                 }
-                HStack(spacing: 3) {
-                    Text(date, style: .relative)
-                    Text("fa")
+                if #available(iOS 18.0, *) {
+                    HStack(spacing: 3) {
+                        Text("Dato di")
+                        Text(.currentDate, format: .offset(
+                            to: date, allowedFields: [.minute], maxFieldCount: 1, sign: .never
+                        ))
+                        Text("fa")
+                    }
                 }
+                // Earlier iOS versions retain the absolute reading time, without a seconds counter.
                 if entry.date.timeIntervalSince(date) >= 24 * 60 * 60 {
                     Text(date, style: .date)
                 }
