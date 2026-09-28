@@ -271,6 +271,11 @@ jobs:
       - name: Sync clock
         run: sudo sntp -sS time.windows.com
 
+      - name: Verify widget snapshot and diagnostic data
+        run: |
+          swiftc Trio/Sources/Services/LiveActivity/TrioWidgetSnapshot.swift "Trio Watch Complication/WatchWidgetSnapshot.swift" scripts/widget-tests/main.swift -o /tmp/widget-tests
+          /tmp/widget-tests
+
       # Build signed Trio IPA file
       - name: Fastlane Build & Archive
         run: bundle exec fastlane build_trio
