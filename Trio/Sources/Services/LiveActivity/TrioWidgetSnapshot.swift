@@ -40,6 +40,24 @@ struct TrioWidgetSnapshot: Codable, Equatable {
         return true
     }
 
+    static func historicalMetric(_ value: String?, date: Date?, at now: Date) -> String? {
+        guard let date, date <= now, let value,
+              !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, value != "--" else { return nil }
+        return value
+    }
+
+    /// Retain the last dated metric when a source is temporarily unavailable; never redate it.
+    static func retainedMetric(
+        value: String?, date: Date?, previousValue: String?, previousDate: Date?, at now: Date
+    ) -> (value: String?, date: Date?) {
+        let current = historicalMetric(value, date: date, at: now)
+        let previous = historicalMetric(previousValue, date: previousDate, at: now)
+        if let previous, let previousDate, current == nil || previousDate > (date ?? .distantPast) {
+            return (previous, previousDate)
+        }
+        return (current, current == nil ? nil : date)
+    }
+
     static func isFresh(_ timestamp: Date?, at date: Date) -> Bool {
         guard let timestamp else { return false }
         let age = date.timeIntervalSince(timestamp)
