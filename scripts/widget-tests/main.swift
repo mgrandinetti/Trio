@@ -25,3 +25,15 @@ check(watch.isCurrent(at: now.addingTimeInterval(359)), "Watch fresh data")
 check(!watch.isCurrent(at: now.addingTimeInterval(360)), "Watch expiration at timeline entry date")
 check(!watch.isCurrent(at: now.addingTimeInterval(-1)), "Watch rejects future timestamps")
 print("Watch snapshot checks passed")
+
+check(sample.historicalGlucose(at: now) == "5,6", "Keep localized glucose intact")
+check(sample.historicalGlucose(at: now.addingTimeInterval(360)) == "5,6", "Expired glucose remains historical")
+check(!TrioWidgetSnapshot.isFresh(sample.glucoseDate, at: now.addingTimeInterval(360)), "Historical glucose must remain stale")
+check(sample.historicalGlucose(at: now.addingTimeInterval(-1)) == nil, "Do not display future historical readings")
+var missingTimestamp = sample
+let encoded = try JSONEncoder().encode(sample)
+var fields = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+fields.removeValue(forKey: "glucoseDate")
+missingTimestamp = try JSONDecoder().decode(TrioWidgetSnapshot.self, from: JSONSerialization.data(withJSONObject: fields))
+check(missingTimestamp.historicalGlucose(at: now) == nil, "Undated glucose must not be displayed as history")
+print("Historical glucose display checks passed")
