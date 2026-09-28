@@ -108,7 +108,6 @@ final class LiveActivityData: ObservableObject {
         notificationCenter
             .addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil) { [weak self] _ in
                 Task { @MainActor in
-                    TrioWidgetDiagnostics.record(.appBackground)
                     await self?.pushCurrentContent(forceWidgetReload: true)
                 }
             }
@@ -116,7 +115,6 @@ final class LiveActivityData: ObservableObject {
             .addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
-                    TrioWidgetDiagnostics.record(.appActive)
                     // Recover persisted updates that may have arrived while the app was suspended.
                     await self.loadGlucose()
                     await self.loadDetermination()
@@ -152,7 +150,6 @@ final class LiveActivityData: ObservableObject {
         }.store(in: &subscriptions)
 
         coreDataPublisher?.filteredByEntityName("GlucoseStored").sink { [weak self] _ in
-            TrioWidgetDiagnostics.record(.glucoseObserved)
             Task { await self?.loadGlucose() }
         }.store(in: &subscriptions)
 
@@ -173,13 +170,11 @@ final class LiveActivityData: ObservableObject {
     private func loadDetermination() async {
         do {
             data.determination = try await fetchAndMapDetermination()
-            TrioWidgetDiagnostics.record(.determinationLoaded, cobDate: data.determination?.date)
         } catch {
             debug(
                 .default,
                 "[LiveActivityManager] \(DebuggingIdentifiers.failed) failed to fetch and map determination: \(error)"
             )
-            TrioWidgetDiagnostics.record(.determinationLoadFailed)
         }
     }
 
@@ -213,13 +208,11 @@ final class LiveActivityData: ObservableObject {
     private func loadGlucose() async {
         do {
             data.glucoseFromPersistence = try await fetchAndMapGlucose()
-            TrioWidgetDiagnostics.record(.glucoseLoaded, glucoseDate: data.glucoseFromPersistence?.first?.date)
         } catch {
             debug(
                 .default,
                 "[LiveActivityManager] \(DebuggingIdentifiers.failed) failed to fetch glucose with error: \(error)"
             )
-            TrioWidgetDiagnostics.record(.glucoseLoadFailed)
         }
     }
 
@@ -452,18 +445,8 @@ final class LiveActivityData: ObservableObject {
             determinationDate: data.determination?.date
         )
         let changed = snapshot.save()
-        if changed {
-            TrioWidgetDiagnostics.record(
-                .snapshotSaved, glucoseDate: snapshot.glucoseDate, iobDate: snapshot.iobDate,
-                cobDate: snapshot.determinationDate
-            )
-        }
         // An unchanged App Group snapshot does not mean WidgetKit has rendered it.
         if changed || forceReload {
-            TrioWidgetDiagnostics.record(
-                .reloadRequested, glucoseDate: snapshot.glucoseDate, iobDate: snapshot.iobDate,
-                cobDate: snapshot.determinationDate
-            )
             WidgetCenter.shared.reloadTimelines(ofKind: "TrioStatusWidget")
         }
     }
