@@ -57,6 +57,7 @@ final class LiveActivityData: ObservableObject {
     @Injected() private var storage: FileStorage!
     @Injected() private var glucoseStorage: GlucoseStorage!
     @Injected() private var iobService: IOBService!
+    @Injected() private var apsManager: APSManager!
 
     private let activityAuthorizationInfo = ActivityAuthorizationInfo()
     /// Indicates whether system live activities are enabled.
@@ -116,9 +117,8 @@ final class LiveActivityData: ObservableObject {
                 Task { @MainActor in
                     guard let self else { return }
                     // Recover persisted updates that may have arrived while the app was suspended.
-                    await self.loadGlucose()
-                    await self.loadDetermination()
-                    await self.pushCurrentContent(forceWidgetReload: true)
+                    await self.refreshWidgetFromPersistence()
+                    await self.pushCurrentContent()
                 }
             }
         notificationCenter.addObserver(
@@ -141,6 +141,26 @@ final class LiveActivityData: ObservableObject {
 
     /// Registers handlers for Core Data changes related to overrides, glucose readings, and determinations.
     private func registerHandler() {
+        // A completed attempt is a recovery point, even when values have not changed.
+        // Observe existing lifecycle events without changing the dosing pipeline.
+        apsManager.isLooping
+            .removeDuplicates()
+            .dropFirst()
+            .filter { !$0 }
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    await self?.refreshWidgetFromPersistence()
+                }
+            }.store(in: &subscriptions)
+
+        // IOBService only publishes value changes. A new file can have the same value
+        // with a newer source timestamp, which must still reach the widget.
+        apsManager.iobFileDidUpdate.sink { [weak self] _ in
+            Task { @MainActor in
+                self?.updateStatusWidget(forceReload: false)
+            }
+        }.store(in: &subscriptions)
+
         coreDataPublisher?.filteredByEntityName("OverrideStored").sink { [weak self] _ in
             Task { await self?.loadOverrides() }
         }.store(in: &subscriptions)
@@ -167,9 +187,10 @@ final class LiveActivityData: ObservableObject {
     }
 
     /// Fetches and maps new determination data and updates the live activity content state.
-    private func loadDetermination() async {
+    @MainActor private func loadDetermination() async {
         do {
             data.determination = try await fetchAndMapDetermination()
+            updateStatusWidget(forceReload: false)
         } catch {
             debug(
                 .default,
@@ -205,9 +226,10 @@ final class LiveActivityData: ObservableObject {
     }
 
     /// Sets up the array of glucose data from persistent storage and triggers an update to the live activity.
-    private func loadGlucose() async {
+    @MainActor private func loadGlucose() async {
         do {
             data.glucoseFromPersistence = try await fetchAndMapGlucose()
+            updateStatusWidget(forceReload: false)
         } catch {
             debug(
                 .default,
@@ -405,6 +427,13 @@ final class LiveActivityData: ObservableObject {
 }
 
 @available(iOS 16.2, *) extension LiveActivityManager {
+    @MainActor private func refreshWidgetFromPersistence() async {
+        await loadGlucose()
+        await loadDetermination()
+        // The shared snapshot may already be current while WidgetKit still shows an older entry.
+        updateStatusWidget(forceReload: true)
+    }
+
     @MainActor private func updateStatusWidget(forceReload: Bool) {
         let glucose = data.glucoseFromPersistence ?? []
         let latest = glucose.first
