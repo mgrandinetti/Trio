@@ -76,16 +76,27 @@ struct TrioStatusWidgetView: View {
                 Text("Trio").fontWeight(.semibold)
                 Spacer(minLength: 4)
                 if family == .systemMedium {
-                    freshnessLabel
+                    readingTime
                 }
             }
             .font(.caption2)
 
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
+                    if !entry.isFresh, historicalGlucose != nil {
+                        Text("Ultimo valore").font(.caption2).foregroundStyle(.secondary)
+                    }
                     glucoseRow
+                    if entry.isFresh {
+                        Text(entry.snapshot?.delta ?? "").font(.caption2).foregroundStyle(.secondary)
+                    } else {
+                        Label("Dato non aggiornato", systemImage: "clock.badge.exclamationmark")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if family == .systemSmall {
-                        freshnessLabel
+                        readingTime
                     }
                 }
                 if family == .systemMedium, let snapshot = entry.snapshot {
@@ -105,10 +116,35 @@ struct TrioStatusWidgetView: View {
         }
     }
 
+    private var historicalGlucose: String? { entry.snapshot?.historicalGlucose(at: entry.date) }
+
+    private var readingTime: some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            if historicalGlucose != nil, let date = entry.snapshot?.glucoseDate {
+                HStack(spacing: 3) {
+                    Text("Lettura")
+                    Text(date, style: .time).monospacedDigit()
+                }
+                HStack(spacing: 3) {
+                    Text(date, style: .relative)
+                    Text("fa")
+                }
+                if entry.date.timeIntervalSince(date) >= 24 * 60 * 60 {
+                    Text(date, style: .date)
+                }
+            } else {
+                Text("Lettura non disponibile")
+            }
+        }
+        .font(.system(size: 9))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+
     private var glucoseRow: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(entry.glucose)
+                Text(historicalGlucose ?? "--")
                     .font(.system(size: family == .systemMedium ? 40 : 34, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .monospacedDigit()
@@ -140,8 +176,8 @@ struct TrioStatusWidgetView: View {
     }
 
     private func metric(_ title: String, value: String?, date: Date?, unit: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(title).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
             Text("\(TrioWidgetSnapshot.isFresh(date, at: entry.date) ? (value ?? "--") : "--") \(unit)")
                 .font(.caption.weight(.semibold)).monospacedDigit().lineLimit(1)
         }

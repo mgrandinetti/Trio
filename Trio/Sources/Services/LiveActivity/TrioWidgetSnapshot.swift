@@ -46,6 +46,12 @@ struct TrioWidgetSnapshot: Codable, Equatable {
         return age >= 0 && age < freshnessInterval
     }
 
+    /// Historical display is allowed only when the sensor timestamp is known and not in the future.
+    func historicalGlucose(at date: Date) -> String? {
+        guard let glucoseDate, glucoseDate <= date, !glucose.isEmpty, glucose != "--" else { return nil }
+        return glucose
+    }
+
     func displayValue(_ value: Double) -> Double {
         unit == "mmol/L" ? value * 0.0555 : value
     }
