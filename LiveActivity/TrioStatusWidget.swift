@@ -94,6 +94,7 @@ struct TrioStatusWidgetView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .layoutPriority(1)
                 if family == .systemMedium, let snapshot = entry.snapshot {
                     glucoseChart(snapshot)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -148,8 +149,12 @@ struct TrioStatusWidgetView: View {
                 Text(historicalGlucose ?? "--")
                     .font(.system(size: family == .systemMedium ? 40 : 34, weight: .semibold, design: .rounded))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .monospacedDigit()
-                Text(entry.trend).font(.title3.weight(.medium))
+                    .layoutPriority(1)
+                Text(entry.trend)
+                    .font(.title3.weight(.medium))
+                    .fixedSize()
             }
             .foregroundStyle(entry.isFresh ? Color.blue : Color.secondary)
             Text(entry.snapshot?.unit ?? " ").font(.caption2).foregroundStyle(.secondary)
