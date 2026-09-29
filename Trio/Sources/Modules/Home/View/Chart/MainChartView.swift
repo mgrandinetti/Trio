@@ -85,6 +85,10 @@ struct MainChartView: View {
     /// the selection instead of panning, until the finger lifts.
     @State private var isInspectLatched = false
 
+    /// Detailed style: where the current drag started and whether it runs mostly horizontal.
+    /// Keyed by the start point, so a drag cut short by the page scroll never leaks into the next.
+    @State private var detailedDrag: (start: CGPoint, isHorizontal: Bool)?
+
     /// Most recent finger location, so the hold timer can place the selection even if the
     /// finger produced no further events after touch-down.
     @State private var lastTouchLocation: CGPoint?
@@ -187,7 +191,11 @@ struct MainChartView: View {
         .clipped()
         .contentShape(Rectangle())
         .onPreferenceChange(CobIobPlotFrameKey.self) { cobIobPlotFrame = $0 }
-        .simultaneousGesture(panAndInspectGesture)
+        // the detailed Home scrolls vertically: a gesture that claims the touch at touch-down
+        // would stop the page from scrolling, so that style pans and inspects with its own pair
+        .simultaneousGesture(panAndInspectGesture, including: isDetailed ? .subviews : .all)
+        .simultaneousGesture(detailedPanGesture, including: isDetailed ? .all : .subviews)
+        .simultaneousGesture(detailedInspectGesture, including: isDetailed ? .all : .subviews)
         .simultaneousGesture(magnifyGesture)
         .simultaneousGesture(TapGesture(count: 2).onEnded { cycleZoomPreset() })
         .onDisappear {
@@ -598,6 +606,63 @@ extension MainChartView {
                 let velocity = -timeDelta(forTranslation: value.velocity.width)
                 startMomentum(velocitySecondsPerSecond: velocity)
             }
+    }
+
+    /// Detailed style pan: engages only after the finger has travelled, and only for a mostly
+    /// horizontal drag; a vertical one is left to the page scroll.
+    private var detailedPanGesture: some Gesture {
+        DragGesture(minimumDistance: MainChartHelper.Config.inspectMovementTolerance)
+            .onChanged { value in
+                momentumTask?.cancel()
+                if detailedDrag?.start != value.startLocation {
+                    // a new drag: a mostly vertical one is left to the page scroll
+                    let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
+                    detailedDrag = (value.startLocation, isHorizontal)
+                    panBaseline = isHorizontal
+                        ? scrollPosition.addingTimeInterval(timeDelta(forTranslation: value.translation.width))
+                        : nil
+                }
+                guard !isPinching, !isInspectLatched, detailedDrag?.isHorizontal == true else { return }
+                if let baseline = panBaseline {
+                    scrollPosition = clampedLeadingEdge(
+                        baseline.addingTimeInterval(-timeDelta(forTranslation: value.translation.width))
+                    )
+                }
+            }
+            .onEnded { value in
+                detailedDrag = nil
+                let wasPanning = panBaseline != nil
+                panBaseline = nil
+                guard wasPanning, !isPinching else { return }
+                startMomentum(velocitySecondsPerSecond: -timeDelta(forTranslation: value.velocity.width))
+            }
+    }
+
+    /// Detailed style inspect: a press held still latches it, then dragging scrubs. The hold
+    /// is longer than the stock one so that a finger resting before a scroll does not latch.
+    private var detailedInspectGesture: some Gesture {
+        LongPressGesture(
+            minimumDuration: max(MainChartHelper.Config.inspectHoldDelay, 0.3),
+            maximumDistance: MainChartHelper.Config.inspectMovementTolerance
+        )
+        .sequenced(before: DragGesture(minimumDistance: 0))
+        .onChanged { value in
+            guard case let .second(true, drag) = value, !isPinching, panBaseline == nil else { return }
+            if !isInspectLatched {
+                isInspectLatched = true
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                scrubPointHaptic.prepare()
+            }
+            if let drag {
+                updateSelection(atViewportX: drag.location.x)
+                manageEdgePan(atViewportX: drag.location.x)
+            }
+        }
+        .onEnded { _ in
+            edgePanTask?.cancel()
+            if selection != nil { selection = nil }
+            isInspectLatched = false
+        }
     }
 
     /// Arms the inspect hold: after `Config.inspectHoldDelay`, if the touch is still down
@@ -1012,15 +1077,26 @@ extension MainChartCanvas {
                 )
             }
 
-            ForecastView(
-                preprocessedData: state.preprocessedData,
-                minForecast: state.minForecast,
-                maxForecast: state.maxForecast,
-                units: state.units,
-                maxValue: state.maxYAxisValue,
-                forecastDisplayType: state.forecastDisplayType,
-                lastDeterminationDate: state.determinationsFromPersistence.first?.deliverAt ?? .distantPast
-            )
+            if detailedLayout != nil, state.forecastDisplayType != .lines {
+                DetailedForecastCone(
+                    minForecast: state.minForecast,
+                    maxForecast: state.maxForecast,
+                    units: state.units,
+                    maxValue: state.maxYAxisValue,
+                    start: state.determinationsFromPersistence.first?.deliverAt ?? .distantPast,
+                    palette: DetailedPalette(colorScheme)
+                )
+            } else {
+                ForecastView(
+                    preprocessedData: state.preprocessedData,
+                    minForecast: state.minForecast,
+                    maxForecast: state.maxForecast,
+                    units: state.units,
+                    maxValue: state.maxYAxisValue,
+                    forecastDisplayType: state.forecastDisplayType,
+                    lastDeterminationDate: state.determinationsFromPersistence.first?.deliverAt ?? .distantPast
+                )
+            }
 
             GlucoseChartView(
                 glucoseData: glucose,

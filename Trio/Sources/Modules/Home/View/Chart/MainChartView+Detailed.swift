@@ -681,3 +681,49 @@ struct DetailedTreatmentMarks: ChartContent {
         }
     }
 }
+
+// MARK: - Forecast cone
+
+/// The stock forecast cone (same min/max bounds and 2.5 h horizon), drawn stronger for the
+/// detailed cards and with a dashed line through its middle so the expected path reads at a glance.
+struct DetailedForecastCone: ChartContent {
+    let minForecast: [Int]
+    let maxForecast: [Int]
+    let units: GlucoseUnits
+    let maxValue: Decimal
+    let start: Date
+    let palette: DetailedPalette
+
+    private func display(_ mgdL: Int) -> Decimal {
+        let value = units == .mgdL ? Decimal(mgdL) : Decimal(mgdL).asMmolL
+        return min(value, maxValue)
+    }
+
+    var body: some ChartContent {
+        ForEach(0 ..< min(minForecast.count, maxForecast.count), id: \.self) { index in
+            let date = start.addingTimeInterval(TimeInterval(index * 300))
+            if date <= Date(timeIntervalSinceNow: TimeInterval(hours: 2.5)) {
+                // equal bounds still get a sliver, as in the stock cone
+                let spread = minForecast[index] == maxForecast[index] ? 1 : 0
+                let lower = display(min(minForecast[index], maxForecast[index]) - spread)
+                let upper = display(max(minForecast[index], maxForecast[index]) + spread)
+                AreaMark(
+                    x: .value("Time", date),
+                    yStart: .value("Min Value", lower),
+                    yEnd: .value("Max Value", upper)
+                )
+                .foregroundStyle(palette.insulin.opacity(0.3))
+                .interpolationMethod(.catmullRom)
+
+                LineMark(
+                    x: .value("Time", date),
+                    y: .value("Middle", (lower + upper) / 2),
+                    series: .value("Series", "ForecastMiddle")
+                )
+                .foregroundStyle(palette.insulin)
+                .lineStyle(StrokeStyle(lineWidth: 1.6, dash: [5, 4]))
+                .interpolationMethod(.catmullRom)
+            }
+        }
+    }
+}
