@@ -106,7 +106,7 @@ extension MainChartCanvas {
     }
 
     /// Suspend→resume intervals resolved once, so the mark loop does no per-mark lookups.
-    private func suspensionIntervals() -> [(start: Date, end: Date, height: Double)] {
+    func suspensionIntervals() -> [(start: Date, end: Date, height: Double)] {
         let suspensions = state.suspendAndResumeEvents
         let now = Date()
         var intervals = [(start: Date, end: Date, height: Double)]()

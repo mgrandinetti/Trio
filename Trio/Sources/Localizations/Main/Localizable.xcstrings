@@ -1089,6 +1089,124 @@
         }
       }
     },
+    "Active carbs" : {
+      "comment" : "Detailed Home chart pane title",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carboidrati attivi"
+          }
+        }
+      }
+    },
+    "Active insulin" : {
+      "comment" : "Detailed Home chart pane title",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insulina attiva"
+          }
+        }
+      }
+    },
+    "Choose the layout of the Home screen header and chart. See hint for more details." : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli la disposizione della parte alta e del grafico della Home. Vedi il suggerimento per i dettagli."
+          }
+        }
+      }
+    },
+    "Communication %@ ago" : {
+      "comment" : "Detailed Home pump card: last pump communication",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comunicazione %@ fa"
+          }
+        }
+      }
+    },
+    "Current basal" : {
+      "comment" : "Detailed Home stats row title",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Basale"
+          }
+        }
+      }
+    },
+    "Eventual" : {
+      "comment" : "Detailed Home stats row title",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eventuale"
+          }
+        }
+      }
+    },
+    "Home Chart Style" : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stile grafico Home"
+          }
+        }
+      }
+    },
+    "Insulin reservoir" : {
+      "comment" : "Detailed Home pump card",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serbatoio"
+          }
+        }
+      }
+    },
+    "last %@ ago" : {
+      "comment" : "Detailed Home loop card: time since last loop",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ultimo %@ fa"
+          }
+        }
+      }
+    },
+    "Pod" : {
+      "comment" : "Detailed Home pump card",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pod"
+          }
+        }
+      }
+    },
+    "Trio: the standard Home screen.\n\nDetailed: a larger glucose value with loop and pump cards, IOB, COB and basal in separate rows on the same time axis, small bolus and carb marks, dashed high and low threshold lines and 3h, 6h, 12h, 24h buttons. Only the presentation changes: dosing, forecasts and calculations are the same." : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trio: la Home standard.\n\nDettagliato: glicemia più grande con i riquadri del loop e della pompa, IOB, COB e basale in righe separate sullo stesso asse del tempo, segni piccoli per boli e carboidrati, linee tratteggiate sulle soglie alta e bassa e tasti 3h, 6h, 12h, 24h. Cambia solo la presentazione: dosaggio, previsioni e calcoli restano gli stessi."
+          }
+        }
+      }
+    },
     " " : {
       "localizations" : {
         "bg" : {
