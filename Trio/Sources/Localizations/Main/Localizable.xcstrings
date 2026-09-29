@@ -1111,6 +1111,34 @@
         }
       }
     },
+    "Blood glucose" : {
+      "comment" : "Detailed Home chart card title",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glicemia"
+          }
+        }
+      }
+    },
+    "chart.now" : {
+      "comment" : "Detailed Home chart: label of the current time line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "now"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "adesso"
+          }
+        }
+      }
+    },
     "Choose the layout of the Home screen header and chart. See hint for more details." : {
       "localizations" : {
         "it" : {
@@ -227437,6 +227465,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟延遲選項"
+          }
+        }
+      }
+    },
+    "Opens statistics" : {
+      "comment" : "Accessibility hint",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apre le statistiche"
           }
         }
       }

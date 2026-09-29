@@ -169,8 +169,20 @@ extension Home {
             .overlay(alignment: .top) { pullToRefreshIndicator }
             // safe-area anchor: the tab bar can never cover the bottom controls
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                bottomControls()
+                if state.homeChartStyle == .detailed {
+                    detailedBottomControls()
+                } else {
+                    bottomControls()
+                }
             }
+            // detailed style: the readout stays in view while its cards scroll, and a
+            // press-and-hold scrub never drags the page
+            .overlay(alignment: .top) {
+                if state.homeChartStyle == .detailed {
+                    detailedChartReadout()
+                }
+            }
+            .scrollDisabled(state.homeChartStyle == .detailed && isChartReadoutVisible)
             .background(appState.trioBackgroundColor(for: colorScheme))
             .onReceive(
                 resolver.resolve(AlertPermissionsChecker.self)!.$notificationsDisabled,

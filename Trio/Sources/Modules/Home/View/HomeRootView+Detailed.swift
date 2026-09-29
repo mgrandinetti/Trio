@@ -1,16 +1,24 @@
 import SwiftUI
 
 // Detailed Home style (`HomeChartStyle.detailed`): a large glucose value, loop and pump cards,
-// a row with IOB / COB / basal / eventual glucose, then the detailed chart stack. Kept apart
-// from the stock header so the `.trio` layout stays as upstream ships it. Presentation only.
+// a card with IOB / COB / basal / eventual glucose, then the detailed chart cards, all in one
+// vertically scrolling column. Kept apart from the stock header so the `.trio` layout stays as
+// upstream ships it. Presentation only.
 
 enum DetailedHomeLayout {
-    /// glucose row + loop / pump cards
-    static let headerHeight: CGFloat = 178
-    static let glucoseRowHeight: CGFloat = 62
-    static let cardHeight: CGFloat = 100
+    static let topPadding: CGFloat = 12
+    static let glucoseRowHeight: CGFloat = 64
+    static let cardHeight: CGFloat = 119
+    static let statsHeight: CGFloat = 67
     static let horizontalPadding: CGFloat = 16
     static let cardSpacing: CGFloat = 10
+    static let sectionSpacing: CGFloat = 14
+    /// How much of the "Active insulin" card shows above the bottom controls on opening.
+    static let nextCardPeek: CGFloat = 42
+    /// Top of the glucose card in the scrolling column.
+    static var chartCardTop: CGFloat {
+        topPadding + glucoseRowHeight + cardHeight + statsHeight + DetailedChartLayout.zoomBarHeight + 4 * sectionSpacing
+    }
 }
 
 /// Bolus and carbs entered at a selected chart point.
@@ -51,7 +59,7 @@ extension ChartSelectionLookup {
 
 extension Home.RootView {
     @ViewBuilder func detailedDashboardContent(_ geo: GeometryProxy) -> some View {
-        VStack(spacing: 0) {
+        VStack(spacing: DetailedHomeLayout.sectionSpacing) {
             Group {
                 if let apsManager = state.apsManager, let bluetoothManager = apsManager.bluetoothManager,
                    bluetoothManager.bluetoothAuthorization != .authorized
@@ -61,26 +69,34 @@ extension Home.RootView {
                     detailedHeader(width: geo.size.width)
                 }
             }
-            .frame(height: DetailedHomeLayout.headerHeight)
+            .frame(
+                height: DetailedHomeLayout.glucoseRowHeight + DetailedHomeLayout.sectionSpacing
+                    + DetailedHomeLayout.cardHeight
+            )
 
-            detailedMealPanel()
-                .frame(height: HomeLayout.mealSlotHeight)
-                .animation(ChartSelectionLookup.readoutFade, value: isChartReadoutVisible)
-                .task(id: chartSelection) { await updateChartReadout() }
+            detailedStatsCard
+                .padding(.horizontal, DetailedHomeLayout.horizontalPadding)
 
             detailedMainChart(geo: geo)
         }
+        .padding(.top, DetailedHomeLayout.topPadding)
+        .padding(.bottom, DetailedHomeLayout.sectionSpacing)
         .frame(maxWidth: .infinity)
+        .task(id: chartSelection) { await updateChartReadout() }
     }
 
+    /// The glucose card fills the screen down to a peek of the next card; the lower cards
+    /// are reached by scrolling.
     @ViewBuilder private func detailedMainChart(geo: GeometryProxy) -> some View {
-        let chartHeight = max(
-            geo.size.height - DetailedHomeLayout.headerHeight - HomeLayout.mealSlotHeight - HomeLayout.bottomZoneHeight,
-            HomeLayout.chartMinHeight
+        let glucoseCardHeight = geo.size.height - detailedBottomZoneHeight - DetailedHomeLayout.chartCardTop
+            - DetailedChartLayout.cardSpacing - DetailedHomeLayout.nextCardPeek
+        let glucosePlotHeight = max(
+            glucoseCardHeight - DetailedChartLayout.glucoseHeaderHeight - DetailedChartLayout.glucoseFooterHeight,
+            DetailedChartLayout.minGlucosePlotHeight
         )
         MainChartView(
             geo: geo,
-            chartHeight: chartHeight,
+            chartHeight: glucosePlotHeight,
             units: state.units,
             highGlucose: state.highGlucose,
             lowGlucose: state.lowGlucose,
@@ -93,16 +109,18 @@ extension Home.RootView {
             chartStyle: .detailed,
             selection: $chartSelection
         )
-        .frame(height: chartHeight)
     }
 
     // MARK: - Header
 
     @ViewBuilder private func detailedHeader(width: CGFloat) -> some View {
         let inner = width - 2 * DetailedHomeLayout.horizontalPadding - DetailedHomeLayout.cardSpacing
-        VStack(spacing: 8) {
-            detailedGlucoseRow
-                .frame(height: DetailedHomeLayout.glucoseRowHeight)
+        VStack(spacing: DetailedHomeLayout.sectionSpacing) {
+            HStack(spacing: 12) {
+                detailedGlucoseRow
+                alarmsPill
+            }
+            .frame(height: DetailedHomeLayout.glucoseRowHeight)
 
             HStack(spacing: DetailedHomeLayout.cardSpacing) {
                 detailedLoopCard
@@ -123,8 +141,6 @@ extension Home.RootView {
             cgmStatus: state.cgmDisplayState,
             highGlucose: state.highGlucose,
             lowGlucose: state.lowGlucose,
-            currentGlucoseTarget: state.currentGlucoseTarget,
-            glucoseColorScheme: state.glucoseColorScheme,
             timerDate: state.timerDate
         )
         // same gestures as the stock glucose bobble
@@ -207,81 +223,172 @@ extension Home.RootView {
         }
     }
 
-    // MARK: - Stats row (meal slot)
+    // MARK: - Stats card
 
-    /// IOB / COB / basal / eventual glucose, with the chart readout cross-fading over it while
-    /// the chart is scrubbed (same mechanism as the stock meal panel).
-    @ViewBuilder private func detailedMealPanel() -> some View {
-        ZStack {
-            detailedStatsRow
-                .opacity(isChartReadoutVisible ? 0 : 1)
-
-            if let readoutDate = chartReadoutDate,
-               let selectedGlucose = ChartSelectionLookup.glucose(at: readoutDate, in: state.glucoseFromPersistence)
-            {
-                ChartSelectionRow(
-                    selectedGlucose: selectedGlucose,
-                    determination: nil,
-                    units: state.units,
-                    highGlucose: state.highGlucose,
-                    lowGlucose: state.lowGlucose,
-                    currentGlucoseTarget: state.currentGlucoseTarget,
-                    glucoseColorScheme: state.glucoseColorScheme,
-                    isSmoothingEnabled: state.settingsManager.settings.smoothGlucose,
-                    treatments: ChartSelectionLookup.treatments(
-                        at: readoutDate,
-                        insulin: state.insulinFromPersistence,
-                        carbs: state.carbsFromPersistence
-                    )
-                )
-                .padding(.horizontal)
-                .opacity(isChartReadoutVisible ? 1 : 0)
-                .allowsHitTesting(isChartReadoutVisible)
-            }
-        }
-    }
-
-    private var detailedStatsRow: some View {
+    /// IOB / COB / basal / eventual glucose in four equal columns.
+    private var detailedStatsCard: some View {
+        let palette = DetailedPalette(colorScheme)
         let determination = state.enactedAndNonEnactedDeterminations.first
-        let iob = (Formatter.decimalFormatterWithTwoFractionDigits.string(from: state.currentIOB as NSNumber) ?? "0")
-            + String(localized: " U", comment: "Insulin unit")
-        let cob = (Formatter.integerFormatter.string(from: NSNumber(value: determination?.cob ?? 0)) ?? "0")
-            + String(localized: " g", comment: "gram of carbs")
+        let iob = Formatter.decimalFormatterWithTwoFractionDigits.string(from: state.currentIOB as NSNumber) ?? "0"
+        let cob = Formatter.integerFormatter.string(from: NSNumber(value: determination?.cob ?? 0)) ?? "0"
         let basal = (state.tempBasals.last?.tempBasal?.rate).map {
-            (Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) ?? "\($0)")
-                + String(localized: " U/hr", comment: "Unit per hour with space")
+            Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) ?? "\($0)"
         }
         let eventual = (determination?.eventualBG).map {
             state.units == .mgdL ? ($0 as Decimal).description : ($0 as Decimal).formattedAsMmolL
         }
 
-        return HStack(alignment: .center, spacing: 8) {
-            statColumn(title: String(localized: "IOB"), value: iob)
-            statColumn(title: String(localized: "COB"), value: cob)
-            if let basal {
-                statColumn(title: String(localized: "Current basal", comment: "Detailed Home stats row title"), value: basal)
-            }
-            if let eventual {
-                statColumn(title: String(localized: "Eventual", comment: "Detailed Home stats row title"), value: eventual)
-            }
-            alarmsPill
+        return HStack(spacing: 0) {
+            statColumn(
+                String(localized: "IOB"),
+                value: iob,
+                unit: String(localized: "U", comment: "Insulin unit"),
+                tint: palette.insulin,
+                palette
+            )
+            statDivider(palette)
+            statColumn(
+                String(localized: "COB"),
+                value: cob,
+                unit: String(localized: "g", comment: "gram of carbs"),
+                tint: palette.carbs,
+                palette
+            )
+            statDivider(palette)
+            statColumn(
+                String(localized: "Current basal", comment: "Detailed Home stats row title"),
+                value: basal ?? "--",
+                unit: String(localized: "U/hr", comment: "Insulin unit per hour abbreviation"),
+                tint: palette.basal,
+                palette
+            )
+            statDivider(palette)
+            statColumn(
+                String(localized: "Eventual", comment: "Detailed Home stats row title"),
+                value: eventual ?? "--",
+                unit: state.units.rawValue,
+                tint: palette.ink,
+                palette
+            )
         }
-        .padding(.horizontal, DetailedHomeLayout.horizontalPadding)
+        .frame(height: DetailedHomeLayout.statsHeight)
+        .detailedCard(palette, cornerRadius: 17)
     }
 
-    private func statColumn(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+    /// Label above; value and unit on one baseline.
+    private func statColumn(
+        _ title: String,
+        value: String,
+        unit: String,
+        tint: Color,
+        _ palette: DetailedPalette
+    ) -> some View {
+        VStack(spacing: 4) {
             Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.callout).fontWeight(.bold).fontDesign(.rounded)
-                .monospacedDigit()
+                .font(.footnote).fontWeight(.medium)
+                .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(value)
+                    .font(.title3).fontWeight(.bold).fontDesign(.rounded)
+                    .monospacedDigit()
+                    .foregroundStyle(tint)
+                Text(unit)
+                    .font(.caption).fontWeight(.medium)
+                    .foregroundStyle(palette.muted)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
+    }
+
+    private func statDivider(_ palette: DetailedPalette) -> some View {
+        Rectangle()
+            .fill(palette.border)
+            .frame(width: 0.65, height: 38)
+    }
+
+    // MARK: - Chart readout
+
+    /// Press-and-hold readout, pinned to the top of the screen so it stays visible whichever
+    /// card is being scrubbed.
+    @ViewBuilder func detailedChartReadout() -> some View {
+        if let readoutDate = chartReadoutDate,
+           let selectedGlucose = ChartSelectionLookup.glucose(at: readoutDate, in: state.glucoseFromPersistence)
+        {
+            ChartSelectionRow(
+                selectedGlucose: selectedGlucose,
+                determination: nil,
+                units: state.units,
+                highGlucose: state.highGlucose,
+                lowGlucose: state.lowGlucose,
+                currentGlucoseTarget: state.currentGlucoseTarget,
+                glucoseColorScheme: state.glucoseColorScheme,
+                isSmoothingEnabled: state.settingsManager.settings.smoothGlucose,
+                treatments: ChartSelectionLookup.treatments(
+                    at: readoutDate,
+                    insulin: state.insulinFromPersistence,
+                    carbs: state.carbsFromPersistence
+                )
+            )
+            .padding(.horizontal)
+            .frame(height: HomeLayout.mealSlotHeight)
+            .detailedCard(DetailedPalette(colorScheme), cornerRadius: 17)
+            .padding(.horizontal, DetailedHomeLayout.horizontalPadding)
+            .padding(.top, DetailedHomeLayout.topPadding)
+            .opacity(isChartReadoutVisible ? 1 : 0)
+            .allowsHitTesting(false)
+            .animation(ChartSelectionLookup.readoutFade, value: isChartReadoutVisible)
+        }
+    }
+
+    // MARK: - Bottom controls
+
+    /// Adjustment / bolus slot, only while an override, a temp target or a bolus is running.
+    private var detailedShowsAdjustmentSlot: Bool {
+        state.bolusProgress != nil || overrideString != nil || tempTargetString != nil
+    }
+
+    /// Alert banners of the multi-use panel; its stats face is the Time in Range pill here.
+    private var detailedShowsAlertBanner: Bool {
+        multiUsePanelState != .stats
+    }
+
+    var detailedBottomZoneHeight: CGFloat {
+        let showsSlot = detailedShowsAdjustmentSlot
+        let showsBanner = detailedShowsAlertBanner
+        guard showsSlot || showsBanner else { return 0 }
+        return (showsSlot ? HomeLayout.bottomPanelHeight : 0) + (showsBanner ? HomeLayout.statsBannerHeight : 0)
+            + ((showsSlot && showsBanner) ? 3 : 2) * HomeLayout.bottomZonePadding
+    }
+
+    /// Same panels as `bottomControls`, shown only when they have something to say.
+    @ViewBuilder func detailedBottomControls() -> some View {
+        let showsSlot = detailedShowsAdjustmentSlot
+        let showsBanner = detailedShowsAlertBanner
+        VStack(spacing: HomeLayout.bottomZonePadding) {
+            if showsSlot {
+                Group {
+                    if let progress = state.bolusProgress {
+                        bolusView(progress)
+                    } else {
+                        adjustmentView()
+                    }
+                }
+                .frame(height: HomeLayout.bottomPanelHeight)
+            }
+
+            if showsBanner {
+                multiUsePanel()
+                    .frame(height: HomeLayout.statsBannerHeight)
+            }
+        }
+        .padding(.vertical, showsSlot || showsBanner ? HomeLayout.bottomZonePadding : 0)
+        .animation(.easeInOut(duration: 0.2), value: showsSlot)
     }
 }
 
@@ -295,10 +402,10 @@ struct DetailedGlucoseRow: View {
     let cgmStatus: CgmDisplayState?
     let highGlucose: Decimal
     let lowGlucose: Decimal
-    let currentGlucoseTarget: Decimal
-    let glucoseColorScheme: GlucoseColorScheme
     /// ticks the minutes-ago caption
     let timerDate: Date
+
+    @Environment(\.colorScheme) var colorScheme
 
     /// Same freshness gate as the stock bobble: older readings are masked.
     private var freshReading: GlucoseStored? {
@@ -337,6 +444,7 @@ struct DetailedGlucoseRow: View {
     }
 
     var body: some View {
+        let palette = DetailedPalette(colorScheme)
         if !cgmAvailable {
             HStack(spacing: 10) {
                 Image(systemName: "sensor.tag.radiowaves.forward.fill").font(.title2)
@@ -346,49 +454,48 @@ struct DetailedGlucoseRow: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
         } else if let reading = freshReading {
-            let color = selectionMarkColor(
-                for: reading,
-                highGlucose: highGlucose,
-                lowGlucose: lowGlucose,
-                currentGlucoseTarget: currentGlucoseTarget,
-                glucoseColorScheme: glucoseColorScheme
-            )
-            let value = reading.glucose == 400
+            let mgdL = Decimal(reading.glucose)
+            let color = mgdL > highGlucose ? palette.high : (mgdL < lowGlucose ? palette.low : palette.glucose)
+            let value = mgdL == 400
                 ? "HIGH"
-                : (units == .mgdL ? Decimal(reading.glucose).description : Decimal(reading.glucose).formattedAsMmolL)
+                : (units == .mgdL ? mgdL.description : mgdL.formattedAsMmolL)
 
-            HStack(alignment: .center, spacing: 10) {
-                Text(value)
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
-                    .foregroundStyle(color)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+            HStack(alignment: .center, spacing: 16) {
+                HStack(alignment: .center, spacing: 6) {
+                    Text(value)
+                        .font(.system(size: 64, weight: .bold, design: .rounded))
+                        .foregroundStyle(color)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
 
-                if let arrow = trendArrow {
-                    HStack(spacing: -6) {
-                        ForEach(0 ..< arrow.count, id: \.self) { _ in
-                            Image(systemName: arrow.symbol)
+                    if let arrow = trendArrow {
+                        HStack(spacing: -6) {
+                            ForEach(0 ..< arrow.count, id: \.self) { _ in
+                                Image(systemName: arrow.symbol)
+                            }
                         }
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(color)
                     }
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(color)
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
                     if let deltaString {
                         Text(deltaString)
-                            .font(.title3).fontWeight(.bold).fontDesign(.rounded)
+                            .font(.system(size: 26, weight: .semibold, design: .rounded))
+                            .foregroundStyle(palette.ink)
                     }
                     Text(units.rawValue)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(.subheadline).fontWeight(.medium)
+                        .foregroundStyle(palette.muted)
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 Text(TimeAgoFormatter.minutesAgo(from: reading.date))
-                    .font(.callout).fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                    .font(.callout).fontWeight(.medium)
+                    .foregroundStyle(palette.muted)
+                    .lineLimit(1)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(
@@ -401,8 +508,8 @@ struct DetailedGlucoseRow: View {
         } else {
             HStack(spacing: 10) {
                 Text(verbatim: "--")
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .foregroundStyle(palette.muted)
                 if let status = cgmStatus, !status.localizedMessage.isEmpty {
                     Text(status.localizedMessage.replacingOccurrences(of: "\n", with: " "))
                         .font(.callout).fontWeight(.semibold)
@@ -429,6 +536,8 @@ struct DetailedLoopCard: View {
     let manualTempBasal: Bool
     let hasDeviceIssue: Bool
     let determination: [OrefDetermination]
+
+    @Environment(\.colorScheme) var colorScheme
 
     private var color: Color {
         LoopView.ringColor(
@@ -462,8 +571,10 @@ struct DetailedLoopCard: View {
     }
 
     var body: some View {
+        let palette = DetailedPalette(colorScheme)
         VStack(spacing: 4) {
             ZStack {
+                Circle().stroke(palette.rail, lineWidth: 4)
                 if ringGap == 0 {
                     Circle().stroke(color, lineWidth: 4)
                 } else {
@@ -478,29 +589,31 @@ struct DetailedLoopCard: View {
                     ProgressView()
                 } else if !manualTempBasal, let symbol = LoopView.centerSymbol(automation: dosingMode.automation) {
                     Image(systemName: symbol)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(color)
                 } else if let minutesSinceLoop {
                     Text(verbatim: "\(minutesSinceLoop)'")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundStyle(color)
                 }
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 46, height: 46)
+            .padding(.bottom, 4)
 
             Text(dosingMode.displayName)
-                .font(.footnote).fontWeight(.bold)
+                .font(.subheadline).fontWeight(.semibold)
+                .foregroundStyle(palette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(caption)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.footnote).fontWeight(.medium)
+                .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassPanel(tint: color, tintOpacity: 0.10, strokeOpacity: 0.25)
+        .detailedCard(palette)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text([dosingMode.displayName, caption].joined(separator: ", ")))
     }
