@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Pump card of the detailed Home style. For an Omnipod with a known expiration it draws a
 /// pod glyph plus reservoir and pod-life bars; for any other pump, or when that data is
-/// missing, it hosts the stock `PumpView`. Colors and thresholds replicate `PumpView`
-/// (`reservoirColor`, `timerColor`) exactly, without changing the original.
+/// missing, it hosts the stock `PumpView`. Thresholds replicate `PumpView` (`reservoirColor`,
+/// `timerColor`) exactly, without changing the original; the colors are the detailed palette's.
 struct DetailedPumpCard: View {
     let reservoir: Decimal?
     let name: String
@@ -13,6 +13,10 @@ struct DetailedPumpCard: View {
     let pumpStatusHighlightMessage: String?
     let battery: [OpenAPS_Battery]
     let lastCommsDate: Date?
+
+    @Environment(\.colorScheme) var colorScheme
+
+    private var palette: DetailedPalette { DetailedPalette(colorScheme) }
 
     /// Same constant as `PumpView`.
     private let NORMAL_PATCH_AGE = TimeInterval.hours(80)
@@ -44,9 +48,10 @@ struct DetailedPumpCard: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassPanel(tintOpacity: 0.06, strokeOpacity: 0.2)
+        .detailedCard(palette)
     }
 
     private func podContent(expiresAt: Date) -> some View {
@@ -55,10 +60,16 @@ struct DetailedPumpCard: View {
                 podGlyph
                 Text(verbatim: name.localizedCaseInsensitiveContains("dash") ? "DASH" : "POD")
                     .font(.caption2).fontWeight(.bold)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(palette.muted)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(name)
+                    .font(.footnote).fontWeight(.semibold)
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
                 bar(
                     title: String(localized: "Insulin reservoir", comment: "Detailed Home pump card"),
                     value: reservoirText,
@@ -86,18 +97,22 @@ struct DetailedPumpCard: View {
     }
 
     private var podGlyph: some View {
-        RoundedRectangle(cornerRadius: 9)
-            .fill(Color.primary.opacity(0.85))
-            .frame(width: 30, height: 42)
+        RoundedRectangle(cornerRadius: 10)
+            .fill(Color(white: 0.95))
+            .frame(width: 28, height: 40)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color(white: 0.72), lineWidth: 1)
+            )
             .overlay(alignment: .top) {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.secondary.opacity(0.6))
-                    .frame(width: 18, height: 12)
+                    .fill(Color(white: 0.88))
+                    .frame(width: 16, height: 9)
                     .padding(.top, 5)
             }
             .overlay(alignment: .bottom) {
                 Circle()
-                    .fill(Color.insulin)
+                    .fill(Color(red: 0.15, green: 0.56, blue: 0.94))
                     .frame(width: 8, height: 8)
                     .padding(.bottom, 6)
             }
@@ -110,18 +125,23 @@ struct DetailedPumpCard: View {
         if let pumpStatusHighlightMessage {
             Label(pumpStatusHighlightMessage.replacingOccurrences(of: "\n", with: " "), systemImage: "exclamationmark.triangle.fill")
                 .font(.caption2).fontWeight(.bold)
-                .foregroundStyle(Color.orange)
+                .foregroundStyle(palette.carbs)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         } else if let lastCommsDate {
-            Text(String(
-                format: String(localized: "Communication %@ ago", comment: "Detailed Home pump card: last pump communication"),
-                TimeAgoFormatter.minutesAgo(from: lastCommsDate)
-            ))
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(palette.glucose)
+                    .frame(width: 5, height: 5)
+                Text(String(
+                    format: String(localized: "Communication %@ ago", comment: "Detailed Home pump card: last pump communication"),
+                    TimeAgoFormatter.minutesAgo(from: lastCommsDate)
+                ))
+                .font(.caption).fontWeight(.medium)
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            }
         }
     }
 
@@ -129,23 +149,23 @@ struct DetailedPumpCard: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.footnote)
+                    .foregroundStyle(palette.muted)
                 Spacer(minLength: 4)
                 Text(value)
-                    .font(.caption).fontWeight(.bold).fontDesign(.rounded)
+                    .font(.footnote).fontWeight(.semibold).fontDesign(.rounded)
                     .foregroundStyle(color)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.2))
+                    Capsule().fill(palette.rail)
                     Capsule().fill(color)
                         .frame(width: geo.size.width * fraction)
                 }
             }
-            .frame(height: 5)
+            .frame(height: 4.5)
         }
     }
 
@@ -167,43 +187,43 @@ struct DetailedPumpCard: View {
         return max(0, min(fraction, 1))
     }
 
-    /// Copy of `PumpView.reservoirColor`.
+    /// `PumpView.reservoirColor` thresholds.
     private var reservoirColor: Color {
         guard let reservoir = reservoir else {
-            return .gray
+            return palette.muted
         }
 
         switch reservoir {
         case ...10:
-            return Color.loopRed
+            return palette.low
         case ...30:
-            return Color.orange
+            return palette.carbs
         default:
-            return Color.insulin
+            return palette.insulin
         }
     }
 
     // MARK: - Pod life
 
-    /// Copy of `PumpView.timerColor`.
+    /// `PumpView.timerColor` thresholds.
     private var timerColor: Color {
         if let activatedAt = activatedAtDate {
-            return abs(activatedAt.timeIntervalSinceNow) > NORMAL_PATCH_AGE ? Color.yellow : Color.loopGreen
+            return abs(activatedAt.timeIntervalSinceNow) > NORMAL_PATCH_AGE ? palette.high : palette.glucose
         }
 
         guard let expiresAt = expiresAtDate else {
-            return .gray
+            return palette.muted
         }
 
         let time = expiresAt.timeIntervalSince(timerDate)
 
         switch time {
         case ...8.hours.timeInterval:
-            return Color.loopRed
+            return palette.low
         case ...1.days.timeInterval:
-            return Color.orange
+            return palette.carbs
         default:
-            return Color.loopGreen
+            return palette.glucose
         }
     }
 

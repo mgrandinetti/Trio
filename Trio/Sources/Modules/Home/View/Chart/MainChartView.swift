@@ -110,9 +110,12 @@ struct MainChartView: View {
 
     var body: some View {
         if isDetailed {
-            VStack(spacing: 0) {
+            VStack(spacing: DetailedHomeLayout.sectionSpacing) {
                 detailedZoomBar
                 chartStack
+                    .padding(.leading, DetailedChartLayout.plotLeading)
+                    .padding(.trailing, DetailedChartLayout.axisColumnWidth)
+                    .background(alignment: .topLeading) { detailedCards }
             }
         } else {
             chartStack
@@ -154,30 +157,27 @@ struct MainChartView: View {
             // (~9x the screen); an unconstrained sibling inherits that width and its
             // trailing-aligned content renders thousands of points off-screen — which is
             // exactly how three axis-overlay attempts rendered "nothing".
-            VStack(spacing: 0) {
-                Color.clear.frame(height: glucosePaneTop)
-                StaticYAxisChart(
-                    yDomain: paddedGlucoseYDomain,
-                    units: units,
-                    displayYgridLines: displayYgridLines
-                )
-                .equatable()
-                .frame(height: mainHeight)
-                // Keep the axis labels off the screen edge.
-                .padding(.trailing, 4)
-                Color.clear.frame(height: cobIobHeight)
+            // the detailed style draws its axis labels beside the plot (detailedCards)
+            if !isDetailed {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: glucosePaneTop)
+                    StaticYAxisChart(
+                        yDomain: paddedGlucoseYDomain,
+                        units: units,
+                        displayYgridLines: displayYgridLines
+                    )
+                    .equatable()
+                    .frame(height: mainHeight)
+                    // Keep the axis labels off the screen edge.
+                    .padding(.trailing, 4)
+                    Color.clear.frame(height: cobIobHeight)
+                }
+                .frame(width: viewportWidth, height: stackHeight, alignment: .topLeading)
+                .allowsHitTesting(false)
             }
-            .frame(width: viewportWidth, height: stackHeight, alignment: .topLeading)
-            .allowsHitTesting(false)
 
             selectionOverlay
                 .allowsHitTesting(false)
-
-            if isDetailed {
-                detailedPaneTitles
-                    .frame(width: viewportWidth, height: stackHeight, alignment: .topLeading)
-                    .allowsHitTesting(false)
-            }
         }
         .frame(
             width: viewportWidth,
@@ -258,7 +258,9 @@ struct MainChartView: View {
 // MARK: - Layout metrics
 
 extension MainChartView {
-    private var viewportWidth: CGFloat { max(geo.size.width, 1) }
+    private var viewportWidth: CGFloat {
+        max(isDetailed ? DetailedChartLayout.plotWidth(screenWidth: geo.size.width) : geo.size.width, 1)
+    }
 
     // Pane splits of the chart's own allocation, preserving the proportions
     // of the previous screen-height fractions (0.05 / 0.33 / 0.12 = 10% /
@@ -920,8 +922,8 @@ struct MainChartCanvas: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let detailedLayout {
-                detailedPanes(detailedLayout)
+            if detailedLayout != nil {
+                detailedPanes()
             } else {
                 basalChart
                 mainChart
@@ -958,10 +960,10 @@ extension MainChartCanvas {
 
         return Chart {
             drawCurrentTimeMarker()
-            drawGlucoseRangeBand()
             if detailedLayout != nil {
                 drawDetailedThresholdLines()
             } else {
+                drawGlucoseRangeBand()
                 drawThresholdLines()
             }
 
@@ -989,7 +991,8 @@ extension MainChartCanvas {
                     insulinData: insulin,
                     carbData: carbs,
                     fpuData: fpus,
-                    yDomain: glucoseYDomain
+                    yDomain: glucoseYDomain,
+                    palette: DetailedPalette(colorScheme)
                 )
             } else {
                 InsulinView(
