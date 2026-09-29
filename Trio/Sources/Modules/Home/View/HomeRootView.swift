@@ -150,7 +150,7 @@ extension Home {
         @ViewBuilder func mainViewElements(_ geo: GeometryProxy) -> some View {
             // viewport-sized content: rubber-bands for the pull-down, never scrolls
             ScrollView(.vertical, showsIndicators: false) {
-                dashboardContent(geo)
+                homeDashboardContent(geo)
                     .padding(.top, isForcingLoop ? HomeLayout.refreshIndicatorHeight : 0)
                     .animation(.easeInOut(duration: 0.25), value: isForcingLoop)
                     .background(
@@ -183,6 +183,15 @@ extension Home {
                     }
                 }
             )
+        }
+
+        /// Stock dashboard, or the detailed one (HomeRootView+Detailed.swift) when selected.
+        @ViewBuilder private func homeDashboardContent(_ geo: GeometryProxy) -> some View {
+            if state.homeChartStyle == .detailed {
+                detailedDashboardContent(geo)
+            } else {
+                dashboardContent(geo)
+            }
         }
 
         @ViewBuilder private func dashboardContent(_ geo: GeometryProxy) -> some View {

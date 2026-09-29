@@ -37,6 +37,8 @@ struct MainChartView: View {
     var displayYgridLines: Bool
     var thresholdLines: Bool
     var state: Home.StateModel
+    /// `.detailed` swaps in the alternative pane stack (see MainChartView+Detailed.swift).
+    var chartStyle: HomeChartStyle = .trio
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -107,6 +109,17 @@ struct MainChartView: View {
     @State private var cobIobPlotFrame: CGRect = .zero
 
     var body: some View {
+        if isDetailed {
+            VStack(spacing: 0) {
+                detailedZoomBar
+                chartStack
+            }
+        } else {
+            chartStack
+        }
+    }
+
+    private var chartStack: some View {
         ZStack(alignment: .topLeading) {
             MainChartCanvas(
                 state: state,
@@ -125,7 +138,8 @@ struct MainChartView: View {
                 basalHeight: basalHeight,
                 mainHeight: mainHeight,
                 cobIobHeight: cobIobHeight,
-                glucoseYDomain: paddedGlucoseYDomain
+                glucoseYDomain: paddedGlucoseYDomain,
+                detailedLayout: isDetailed ? detailedLayout : nil
             )
             .equatable()
             .offset(x: -canvasOffsetX)
@@ -141,7 +155,7 @@ struct MainChartView: View {
             // trailing-aligned content renders thousands of points off-screen — which is
             // exactly how three axis-overlay attempts rendered "nothing".
             VStack(spacing: 0) {
-                Color.clear.frame(height: basalHeight)
+                Color.clear.frame(height: glucosePaneTop)
                 StaticYAxisChart(
                     yDomain: paddedGlucoseYDomain,
                     units: units,
@@ -158,10 +172,16 @@ struct MainChartView: View {
 
             selectionOverlay
                 .allowsHitTesting(false)
+
+            if isDetailed {
+                detailedPaneTitles
+                    .frame(width: viewportWidth, height: stackHeight, alignment: .topLeading)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(
             width: viewportWidth,
-            height: basalHeight + mainHeight + cobIobHeight,
+            height: stackHeight,
             alignment: .topLeading
         )
         .clipped()
@@ -244,7 +264,7 @@ extension MainChartView {
     // of the previous screen-height fractions (0.05 / 0.33 / 0.12 = 10% /
     // 66% / 24% of the 50% chart block).
     var basalHeight: CGFloat { chartHeight * 0.10 }
-    var mainHeight: CGFloat { chartHeight * 0.66 }
+    var mainHeight: CGFloat { isDetailed ? detailedLayout.glucose : chartHeight * 0.66 }
     var cobIobHeight: CGFloat { chartHeight * 0.24 }
 
     private var windowSeconds: TimeInterval {
@@ -331,7 +351,9 @@ extension MainChartView {
 // MARK: - Selection overlay (rendered in the shell, never re-lays the canvas)
 
 extension MainChartView {
-    private var stackHeight: CGFloat { basalHeight + mainHeight + cobIobHeight }
+    private var stackHeight: CGFloat {
+        isDetailed ? detailedLayout.canvasHeight : basalHeight + mainHeight + cobIobHeight
+    }
 
     private func xPosition(for date: Date) -> CGFloat {
         CGFloat(date.timeIntervalSince(scrollPosition) / visibleSeconds) * viewportWidth
@@ -343,7 +365,7 @@ extension MainChartView {
         let span = domain.upperBound - domain.lowerBound
         let fraction = span == 0 ? 0.5 :
             Double(truncating: ((value - domain.lowerBound) / span) as NSDecimalNumber)
-        return basalHeight + mainHeight * CGFloat(1 - min(max(fraction, 0), 1))
+        return glucosePaneTop + mainHeight * CGFloat(1 - min(max(fraction, 0), 1))
     }
 
     private func cobIobYPosition(forChartValue value: Double) -> CGFloat {
@@ -416,7 +438,7 @@ extension MainChartView {
                 // determination's own timestamp: the lookup picks the newest
                 // determination within ±150 s of the scrub point, so drawing its
                 // value at the rule's x floats the dot off the stepped line.
-                if let selectedCOBValue {
+                if !isDetailed, let selectedCOBValue {
                     let dotX = xPosition(for: selectedCOBValue.deliverAt ?? selectionDate)
                     let y = cobIobYPosition(forChartValue: Double(selectedCOBValue.cob))
                     Circle().fill(Color.orange.opacity(0.8))
@@ -426,7 +448,7 @@ extension MainChartView {
                         .frame(width: 6, height: 6)
                         .position(x: dotX, y: y)
                 }
-                if let selectedIOBValue {
+                if !isDetailed, let selectedIOBValue {
                     let dotX = xPosition(for: selectedIOBValue.deliverAt ?? selectionDate)
                     let scaled = MainChartHelper.scaledIobAmount(selectedIOBValue.iob?.doubleValue ?? 0)
                     let y = cobIobYPosition(forChartValue: scaled)
@@ -463,7 +485,7 @@ extension MainChartView {
 
     /// Double-tap cycles the zoom presets, trailing edge anchored.
     private func cycleZoomPreset() {
-        let presets = MainChartHelper.Config.zoomPresets
+        let presets = isDetailed ? MainChartHelper.Config.detailedZoomPresets : MainChartHelper.Config.zoomPresets
         let next = presets.first(where: { $0 > visibleSeconds + 1 }) ?? presets[0]
         let trailing = scrollPosition.addingTimeInterval(visibleSeconds)
         momentumTask?.cancel()
@@ -471,6 +493,15 @@ extension MainChartView {
         // which re-lays the canvas every animation frame.
         visibleSeconds = next
         scrollPosition = clampedLeadingEdge(trailing.addingTimeInterval(-next))
+        updateRenderWindow(force: true)
+    }
+
+    /// Zoom buttons of the detailed style: jump to `seconds` of history ending at now.
+    func selectZoomPreset(_ seconds: TimeInterval) {
+        guard !isPinching, panBaseline == nil, !isInspectLatched else { return }
+        momentumTask?.cancel()
+        visibleSeconds = seconds
+        scrollToTrailingEdge()
         updateRenderWindow(force: true)
     }
 
@@ -826,6 +857,8 @@ struct MainChartCanvas: View {
     var mainHeight: CGFloat
     var cobIobHeight: CGFloat
     var glucoseYDomain: ClosedRange<Decimal>
+    /// Non-nil only for the detailed style; nil keeps the stock three-pane stack.
+    var detailedLayout: DetailedChartLayout?
 
     @State var basalProfiles: [BasalProfile] = []
     @State var preparedTempBasals: [(start: Date, end: Date, rate: Double, isScheduled: Bool)] = []
@@ -887,9 +920,13 @@ struct MainChartCanvas: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            basalChart
-            mainChart
-            cobIobChart
+            if let detailedLayout {
+                detailedPanes(detailedLayout)
+            } else {
+                basalChart
+                mainChart
+                cobIobChart
+            }
         }
         .frame(width: canvasWidth)
         .coordinateSpace(name: Self.coordinateSpaceName)
@@ -922,7 +959,11 @@ extension MainChartCanvas {
         return Chart {
             drawCurrentTimeMarker()
             drawGlucoseRangeBand()
-            drawThresholdLines()
+            if detailedLayout != nil {
+                drawDetailedThresholdLines()
+            } else {
+                drawThresholdLines()
+            }
 
             GlucoseTargetsView(
                 targetProfiles: state.targetProfiles
@@ -943,21 +984,30 @@ extension MainChartCanvas {
                 viewContext: context
             )
 
-            InsulinView(
-                glucoseData: glucose,
-                insulinData: insulin,
-                units: state.units,
-                bolusDisplayThreshold: state.bolusDisplayThreshold
-            )
+            if detailedLayout != nil {
+                DetailedTreatmentMarks(
+                    insulinData: insulin,
+                    carbData: carbs,
+                    fpuData: fpus,
+                    yDomain: glucoseYDomain
+                )
+            } else {
+                InsulinView(
+                    glucoseData: glucose,
+                    insulinData: insulin,
+                    units: state.units,
+                    bolusDisplayThreshold: state.bolusDisplayThreshold
+                )
 
-            CarbView(
-                glucoseData: glucose,
-                units: state.units,
-                carbData: carbs,
-                fpuData: fpus,
-                minValue: units == .mgdL ? state.minYAxisValue : state.minYAxisValue
-                    .asMmolL
-            )
+                CarbView(
+                    glucoseData: glucose,
+                    units: state.units,
+                    carbData: carbs,
+                    fpuData: fpus,
+                    minValue: units == .mgdL ? state.minYAxisValue : state.minYAxisValue
+                        .asMmolL
+                )
+            }
 
             ForecastView(
                 preprocessedData: state.preprocessedData,
@@ -1031,7 +1081,8 @@ extension MainChartCanvas: Equatable {
             lhs.basalHeight == rhs.basalHeight &&
             lhs.mainHeight == rhs.mainHeight &&
             lhs.cobIobHeight == rhs.cobIobHeight &&
-            lhs.glucoseYDomain == rhs.glucoseYDomain
+            lhs.glucoseYDomain == rhs.glucoseYDomain &&
+            lhs.detailedLayout == rhs.detailedLayout
     }
 }
 

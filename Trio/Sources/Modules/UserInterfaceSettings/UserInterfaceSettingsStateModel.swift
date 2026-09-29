@@ -9,6 +9,7 @@ extension UserInterfaceSettings {
         @Published var rulerMarks: Bool = true
         @Published var bolusDisplayThreshold: BolusDisplayThreshold = .allUnits
         @Published var forecastDisplayType: ForecastDisplayType = .cone
+        @Published var homeChartStyle: HomeChartStyle = .trio
         @Published var showCarbsRequiredBadge: Bool = true
         @Published var carbsRequiredThreshold: Decimal = 0
         @Published var glucoseColorScheme: GlucoseColorScheme = .dynamicColor
@@ -30,6 +31,7 @@ extension UserInterfaceSettings {
             subscribeSetting(\.bolusDisplayThreshold, on: $bolusDisplayThreshold) { bolusDisplayThreshold = $0 }
 
             subscribeSetting(\.forecastDisplayType, on: $forecastDisplayType) { forecastDisplayType = $0 }
+            subscribeSetting(\.homeChartStyle, on: $homeChartStyle) { homeChartStyle = $0 }
 
             subscribeSetting(\.low, on: $low) { low = $0 }
 

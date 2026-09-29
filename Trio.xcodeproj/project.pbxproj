@@ -76,6 +76,7 @@
 		7A11AC0DE000000000000116 /* GlassChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11AC0DE000000000000016 /* GlassChrome.swift */; };
 		7A11AC0DE000000000000110 /* HomeRootView+BottomControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11AC0DE000000000000010 /* HomeRootView+BottomControls.swift */; };
 		7A11AC0DE00000000000010E /* HomeRootView+MealPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11AC0DE00000000000000E /* HomeRootView+MealPanel.swift */; };
+		4E7D1C5A00000000000000B3 /* HomeRootView+Detailed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7D1C5A00000000000000A3 /* HomeRootView+Detailed.swift */; };
 		7A11AC0DE00000000000010D /* HomeRootView+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11AC0DE00000000000000D /* HomeRootView+Header.swift */; };
 		3811DE3F25C9D4A100A708ED /* SettingsStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3811DE3925C9D4A100A708ED /* SettingsStateModel.swift */; };
 		3811DE4125C9D4A100A708ED /* SettingsRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3811DE3C25C9D4A100A708ED /* SettingsRootView.swift */; };
@@ -161,6 +162,7 @@
 		38D0B3B625EBE24900CB6E88 /* Battery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D0B3B525EBE24900CB6E88 /* Battery.swift */; };
 		38D0B3D925EC07C400CB6E88 /* CarbsEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D0B3D825EC07C400CB6E88 /* CarbsEntry.swift */; };
 		38DAB280260CBB7F00F74C1A /* PumpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38DAB27F260CBB7F00F74C1A /* PumpView.swift */; };
+		4E7D1C5A00000000000000B4 /* DetailedPumpCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7D1C5A00000000000000A4 /* DetailedPumpCard.swift */; };
 		38DAB28A260D349500F74C1A /* FetchGlucoseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38DAB289260D349500F74C1A /* FetchGlucoseManager.swift */; };
 		38DF1786276A73D400B3528F /* TagCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38DF1785276A73D400B3528F /* TagCloudView.swift */; };
 		38DF178D27733E6800B3528F /* snow.sks in Resources */ = {isa = PBXBuildFile; fileRef = 38DF178B27733E6800B3528F /* snow.sks */; };
@@ -555,6 +557,7 @@
 		BD2B464E0745FBE7B79913F4 /* NightscoutConfigProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF768BD6264FF7D71D66767 /* NightscoutConfigProvider.swift */; };
 		BD2FF1A02AE29D43005D1C5D /* ToggleStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD2FF19F2AE29D43005D1C5D /* ToggleStyles.swift */; };
 		BD3CC0722B0B89D50013189E /* MainChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3CC0712B0B89D50013189E /* MainChartView.swift */; };
+		4E7D1C5A00000000000000B2 /* MainChartView+Detailed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7D1C5A00000000000000A2 /* MainChartView+Detailed.swift */; };
 		BD4064D12C4ED26900582F43 /* CoreDataObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD4064D02C4ED26900582F43 /* CoreDataObserver.swift */; };
 		BD432CA12D2F4E3600D1EB79 /* WatchMessageKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD432CA02D2F4E3300D1EB79 /* WatchMessageKeys.swift */; };
 		BD432CA22D2F4E4000D1EB79 /* WatchMessageKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD432CA02D2F4E3300D1EB79 /* WatchMessageKeys.swift */; };
@@ -934,6 +937,7 @@
 		DDE179712C910127003CDDB7 /* OverrideStored+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE179512C910127003CDDB7 /* OverrideStored+CoreDataProperties.swift */; };
 		DDEBB05C2D89E9050032305D /* TimeInRangeType.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEBB05B2D89E9050032305D /* TimeInRangeType.swift */; };
 		7A11AC0DE000000000000020 /* HomeStatsPanelFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11AC0DE000000000000120 /* HomeStatsPanelFace.swift */; };
+		4E7D1C5A00000000000000B1 /* HomeChartStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7D1C5A00000000000000A1 /* HomeChartStyle.swift */; };
 		DDF68FFC2D9ECF7F008BF16C /* OnboardingStateModel+Nightscout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF68FFB2D9ECF77008BF16C /* OnboardingStateModel+Nightscout.swift */; };
 		DDF6905C2DA0AFC5008BF16C /* WelcomeStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF6905B2DA0AFC5008BF16C /* WelcomeStepView.swift */; };
 		DDF691012DA2CA11008BF16C /* AppDiagnosticsDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF691002DA2CA0B008BF16C /* AppDiagnosticsDataFlow.swift */; };
@@ -1177,6 +1181,7 @@
 		7A11AC0DE000000000000016 /* GlassChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassChrome.swift; sourceTree = "<group>"; };
 		7A11AC0DE000000000000010 /* HomeRootView+BottomControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeRootView+BottomControls.swift"; sourceTree = "<group>"; };
 		7A11AC0DE00000000000000E /* HomeRootView+MealPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeRootView+MealPanel.swift"; sourceTree = "<group>"; };
+		4E7D1C5A00000000000000A3 /* HomeRootView+Detailed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeRootView+Detailed.swift"; sourceTree = "<group>"; };
 		7A11AC0DE00000000000000D /* HomeRootView+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeRootView+Header.swift"; sourceTree = "<group>"; };
 		3811DE3925C9D4A100A708ED /* SettingsStateModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsStateModel.swift; sourceTree = "<group>"; };
 		3811DE3C25C9D4A100A708ED /* SettingsRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsRootView.swift; sourceTree = "<group>"; };
@@ -1275,6 +1280,7 @@
 		38D0B3B525EBE24900CB6E88 /* Battery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Battery.swift; sourceTree = "<group>"; };
 		38D0B3D825EC07C400CB6E88 /* CarbsEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarbsEntry.swift; sourceTree = "<group>"; };
 		38DAB27F260CBB7F00F74C1A /* PumpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpView.swift; sourceTree = "<group>"; };
+		4E7D1C5A00000000000000A4 /* DetailedPumpCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedPumpCard.swift; sourceTree = "<group>"; };
 		38DAB289260D349500F74C1A /* FetchGlucoseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchGlucoseManager.swift; sourceTree = "<group>"; };
 		38DF1785276A73D400B3528F /* TagCloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagCloudView.swift; sourceTree = "<group>"; };
 		38DF178B27733E6800B3528F /* snow.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = snow.sks; sourceTree = "<group>"; };
@@ -1646,6 +1652,7 @@
 		BD249DA62D42FE3800412DEB /* Calendar+GlucoseStatsChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Calendar+GlucoseStatsChart.swift"; sourceTree = "<group>"; };
 		BD2FF19F2AE29D43005D1C5D /* ToggleStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToggleStyles.swift; sourceTree = "<group>"; };
 		BD3CC0712B0B89D50013189E /* MainChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainChartView.swift; sourceTree = "<group>"; };
+		4E7D1C5A00000000000000A2 /* MainChartView+Detailed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MainChartView+Detailed.swift"; sourceTree = "<group>"; };
 		BD4064D02C4ED26900582F43 /* CoreDataObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataObserver.swift; sourceTree = "<group>"; };
 		BD432CA02D2F4E3300D1EB79 /* WatchMessageKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchMessageKeys.swift; sourceTree = "<group>"; };
 		BD47FD122D88AA6B0043966B /* OnboardingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
@@ -2029,6 +2036,7 @@
 		DDE179512C910127003CDDB7 /* OverrideStored+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OverrideStored+CoreDataProperties.swift"; sourceTree = "<group>"; };
 		DDEBB05B2D89E9050032305D /* TimeInRangeType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeInRangeType.swift; sourceTree = "<group>"; };
 		7A11AC0DE000000000000120 /* HomeStatsPanelFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStatsPanelFace.swift; sourceTree = "<group>"; };
+		4E7D1C5A00000000000000A1 /* HomeChartStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeChartStyle.swift; sourceTree = "<group>"; };
 		DDF68FFB2D9ECF77008BF16C /* OnboardingStateModel+Nightscout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OnboardingStateModel+Nightscout.swift"; sourceTree = "<group>"; };
 		DDF6905B2DA0AFC5008BF16C /* WelcomeStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeStepView.swift; sourceTree = "<group>"; };
 		DDF691002DA2CA0B008BF16C /* AppDiagnosticsDataFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDiagnosticsDataFlow.swift; sourceTree = "<group>"; };
@@ -2547,6 +2555,7 @@
 				7A11AC0DE000000000000016 /* GlassChrome.swift */,
 				7A11AC0DE000000000000010 /* HomeRootView+BottomControls.swift */,
 				7A11AC0DE00000000000000E /* HomeRootView+MealPanel.swift */,
+				4E7D1C5A00000000000000A3 /* HomeRootView+Detailed.swift */,
 				7A11AC0DE00000000000000D /* HomeRootView+Header.swift */,
 				3833B51E260264AC003021B3 /* Chart */,
 				3833B51F260264B6003021B3 /* Header */,
@@ -2811,6 +2820,7 @@
 			children = (
 				DDA6E24F2D22187500C2988C /* ChartLegendView.swift */,
 				BD3CC0712B0B89D50013189E /* MainChartView.swift */,
+				4E7D1C5A00000000000000A2 /* MainChartView+Detailed.swift */,
 				BDDAF9F12D0055CC00B34E7A /* ChartElements */,
 			);
 			path = Chart;
@@ -2825,6 +2835,7 @@
 				38AAF85425FFF846004AF583 /* CurrentGlucoseView.swift */,
 				BD11C002000000000000C000 /* SensorLifecycle */,
 				38DAB27F260CBB7F00F74C1A /* PumpView.swift */,
+				4E7D1C5A00000000000000A4 /* DetailedPumpCard.swift */,
 			);
 			path = Header;
 			sourceTree = "<group>";
@@ -3001,6 +3012,7 @@
 				BD54A9722D281A9C00F9C1EE /* TempTargetPresetWatch.swift */,
 				DDEBB05B2D89E9050032305D /* TimeInRangeType.swift */,
 				7A11AC0DE000000000000120 /* HomeStatsPanelFace.swift */,
+				4E7D1C5A00000000000000A1 /* HomeChartStyle.swift */,
 				1935363F28496F7D001E0B16 /* TrioCustomOrefVariables.swift */,
 				38AEE73C25F0200C0013F05B /* TrioSettings.swift */,
 				3811DE8E25C9D80400A708ED /* User.swift */,
@@ -5220,6 +5232,7 @@
 				3811DE2325C9D48300A708ED /* MainDataFlow.swift in Sources */,
 				C2A0A42F2CE03131003B98E8 /* ConstantValues.swift in Sources */,
 				BD3CC0722B0B89D50013189E /* MainChartView.swift in Sources */,
+				4E7D1C5A00000000000000B2 /* MainChartView+Detailed.swift in Sources */,
 				3811DEEB25CA063400A708ED /* PersistedProperty.swift in Sources */,
 				3BC07D6F3017B837004F96AF /* DecimalExtensions+SwiftUI.swift in Sources */,
 				38E44537274E411700EC9A94 /* Disk+Helpers.swift in Sources */,
@@ -5297,6 +5310,7 @@
 				CE94597E29E9E1EE0047C9C6 /* GarminManager.swift in Sources */,
 				3883583425EEB38000E024B2 /* PumpSettings.swift in Sources */,
 				38DAB280260CBB7F00F74C1A /* PumpView.swift in Sources */,
+				4E7D1C5A00000000000000B4 /* DetailedPumpCard.swift in Sources */,
 				DDD1631C2C4C697400CD525A /* AddOverrideForm.swift in Sources */,
 				3811DEB125C9D88300A708ED /* Keychain.swift in Sources */,
 				DD17453E2C55BFB600211FAC /* AlgorithmAdvancedSettingsStateModel.swift in Sources */,
@@ -5484,6 +5498,7 @@
 				7A11AC0DE000000000000116 /* GlassChrome.swift in Sources */,
 				7A11AC0DE000000000000110 /* HomeRootView+BottomControls.swift in Sources */,
 				7A11AC0DE00000000000010E /* HomeRootView+MealPanel.swift in Sources */,
+				4E7D1C5A00000000000000B3 /* HomeRootView+Detailed.swift in Sources */,
 				7A11AC0DE00000000000010D /* HomeRootView+Header.swift in Sources */,
 				584C79A91D034426A1DE60CB /* SlideToConfirmView.swift in Sources */,
 				38E98A2925F52C9300C0CED0 /* Error+Extensions.swift in Sources */,
@@ -5774,6 +5789,7 @@
 				DD4AFFF12DADB59100AB7387 /* AlgorithmSettingsContentsStepView.swift in Sources */,
 				DDEBB05C2D89E9050032305D /* TimeInRangeType.swift in Sources */,
 				7A11AC0DE000000000000020 /* HomeStatsPanelFace.swift in Sources */,
+				4E7D1C5A00000000000000B1 /* HomeChartStyle.swift in Sources */,
 				DD5DC9F32CF3D9DD00AB8703 /* AdjustmentsStateModel+TempTargets.swift in Sources */,
 				BD47FDDB2D8B659B0043966B /* BasalProfileStepView.swift in Sources */,
 				F5F7E6C1B7F098F59EB67EC5 /* TargetsEditorDataFlow.swift in Sources */,

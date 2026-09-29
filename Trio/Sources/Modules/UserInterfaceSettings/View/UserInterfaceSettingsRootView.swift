@@ -423,6 +423,46 @@ extension UserInterfaceSettings {
                 Section {
                     VStack {
                         Picker(
+                            selection: $state.homeChartStyle,
+                            label: Text("Home Chart Style")
+                        ) {
+                            ForEach(HomeChartStyle.allCases) { selection in
+                                Text(selection.displayName).tag(selection)
+                            }
+                        }.padding(.top)
+
+                        HStack(alignment: .center) {
+                            Text(
+                                "Choose the layout of the Home screen header and chart. See hint for more details."
+                            )
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .lineLimit(nil)
+                            Spacer()
+                            Button(
+                                action: {
+                                    hintLabel = String(localized: "Home Chart Style")
+                                    selectedVerboseHint =
+                                        AnyView(
+                                            Text(
+                                                "Trio: the standard Home screen.\n\nDetailed: a larger glucose value with loop and pump cards, IOB, COB and basal in separate rows on the same time axis, small bolus and carb marks, dashed high and low threshold lines and 3h, 6h, 12h, 24h buttons. Only the presentation changes: dosing, forecasts and calculations are the same."
+                                            )
+                                        )
+                                    shouldDisplayHint.toggle()
+                                },
+                                label: {
+                                    HStack {
+                                        Image(systemName: "questionmark.circle").accessibilityLabel(Text("More information"))
+                                    }
+                                }
+                            ).buttonStyle(BorderlessButtonStyle())
+                        }.padding(.top)
+                    }.padding(.bottom)
+                }.settingsSearchTarget(label: String(localized: "Home Chart Style"))
+
+                Section {
+                    VStack {
+                        Picker(
                             selection: $state.bolusDisplayThreshold,
                             label: Text("Bolus Display Threshold")
                         ) {

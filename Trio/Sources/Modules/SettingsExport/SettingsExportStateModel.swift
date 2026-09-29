@@ -831,6 +831,12 @@ extension SettingsExport {
                 addSetting(
                     category: featuresCategory,
                     subcategory: userInterfaceSubcategory,
+                    name: String(localized: "Home Chart Style"),
+                    value: trioSettings.homeChartStyle.rawValue
+                )
+                addSetting(
+                    category: featuresCategory,
+                    subcategory: userInterfaceSubcategory,
                     name: String(localized: "Glucose Color Scheme"),
                     value: trioSettings.glucoseColorScheme.rawValue
                 )

@@ -147,6 +147,7 @@ extension Home {
         var maxForecast: [Int] = []
         var minCount: Int = 12 // count of Forecasts drawn in 5 min distances, i.e. 12 means a min of 1 hour
         var forecastDisplayType: ForecastDisplayType = .cone
+        var homeChartStyle: HomeChartStyle = .trio
 
         var minYAxisValue: Decimal = 39
         var maxYAxisValue: Decimal = 200
@@ -679,6 +680,7 @@ extension Home {
             showCarbsRequiredBadge = settingsManager.settings.showCarbsRequiredBadge
             enableQuickPickTreatments = settingsManager.settings.enableQuickPickTreatments
             forecastDisplayType = settingsManager.settings.forecastDisplayType
+            homeChartStyle = settingsManager.settings.homeChartStyle
             isExerciseModeActive = settingsManager.preferences.exerciseMode
             highTTraisesSens = settingsManager.preferences.highTemptargetRaisesSensitivity
             lowTTlowersSens = settingsManager.preferences.lowTemptargetLowersSensitivity
@@ -956,6 +958,7 @@ extension Home.StateModel:
         showCarbsRequiredBadge = settingsManager.settings.showCarbsRequiredBadge
         enableQuickPickTreatments = settingsManager.settings.enableQuickPickTreatments
         forecastDisplayType = settingsManager.settings.forecastDisplayType
+        homeChartStyle = settingsManager.settings.homeChartStyle
         cgmAvailable = (fetchGlucoseManager.cgmGlucoseSourceType != CGMType.none)
         displayPumpStatusHighlightMessage()
         displayPumpStatusBadge()

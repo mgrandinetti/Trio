@@ -73,6 +73,8 @@ struct ChartSelectionRow: View {
     let currentGlucoseTarget: Decimal
     let glucoseColorScheme: GlucoseColorScheme
     let isSmoothingEnabled: Bool
+    /// Detailed Home style: show the bolus and carbs of the selected point instead of IOB / COB.
+    var treatments: ChartSelectionTreatments? = nil
 
     private var glucoseToDisplay: Decimal {
         units == .mgdL ? Decimal(selectedGlucose.glucose) : Decimal(selectedGlucose.glucose).asMmolL
@@ -138,25 +140,29 @@ struct ChartSelectionRow: View {
 
             glucoseGroup
 
-            // Both stay in the row when the scrub lands where oref produced no determination
-            // — a gap in the data, or a loop that never ran — and show a dash instead.
-            let iobUnit = Text(String(localized: " U", comment: "Insulin unit")).fontWeight(.regular)
-            let iobString = determination?.iob
-                .flatMap { Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) }
-            item(
-                icon: "syringe.fill",
-                tint: Color.insulin,
-                value: iobString.map { Text($0) + iobUnit } ?? Self.missingValue
-            )
+            if let treatments {
+                treatmentItems(treatments)
+            } else {
+                // Both stay in the row when the scrub lands where oref produced no determination
+                // (a gap in the data, or a loop that never ran) and show a dash instead.
+                let iobUnit = Text(String(localized: " U", comment: "Insulin unit")).fontWeight(.regular)
+                let iobString = determination?.iob
+                    .flatMap { Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) }
+                item(
+                    icon: "syringe.fill",
+                    tint: Color.insulin,
+                    value: iobString.map { Text($0) + iobUnit } ?? Self.missingValue
+                )
 
-            let cobUnit = Text(String(localized: " g", comment: "gram of carbs")).fontWeight(.regular)
-            let cobString = determination
-                .flatMap { Formatter.integerFormatter.string(from: $0.cob as NSNumber) }
-            item(
-                icon: "fork.knife",
-                tint: .loopYellow,
-                value: cobString.map { Text($0) + cobUnit } ?? Self.missingValue
-            )
+                let cobUnit = Text(String(localized: " g", comment: "gram of carbs")).fontWeight(.regular)
+                let cobString = determination
+                    .flatMap { Formatter.integerFormatter.string(from: $0.cob as NSNumber) }
+                item(
+                    icon: "fork.knife",
+                    tint: .loopYellow,
+                    value: cobString.map { Text($0) + cobUnit } ?? Self.missingValue
+                )
+            }
         }
         .font(font).fontWeight(.bold).fontDesign(.rounded)
         // equal-width digits, so a value can't wobble as its digits change mid-scrub
@@ -187,6 +193,29 @@ struct ChartSelectionRow: View {
             tint: pointMarkColor,
             value: smoothed.map { reading + Text(verbatim: " ") + $0 } ?? reading
         )
+    }
+
+    /// Bolus and carbs entered at the selected point; a dash when there were none.
+    @ViewBuilder private func treatmentItems(_ treatments: ChartSelectionTreatments) -> some View {
+        let bolusUnit = Text(String(localized: " U", comment: "Insulin unit")).fontWeight(.regular)
+        let bolusString = treatments.bolus
+            .flatMap { Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0 as NSNumber) }
+        item(
+            icon: "arrowtriangle.down.fill",
+            tint: Color.insulin,
+            value: bolusString.map { Text($0) + bolusUnit } ?? Self.missingValue
+        )
+        .accessibilityLabel(Text("Bolus"))
+
+        let carbsUnit = Text(String(localized: " g", comment: "gram of carbs")).fontWeight(.regular)
+        let carbsString = treatments.carbs
+            .flatMap { Formatter.integerFormatter.string(from: $0 as NSNumber) }
+        item(
+            icon: "fork.knife",
+            tint: .orange,
+            value: carbsString.map { Text($0) + carbsUnit } ?? Self.missingValue
+        )
+        .accessibilityLabel(Text("Carbs"))
     }
 
     /// The smoothed reading in display units, or nil with smoothing off or no smoothed value.
