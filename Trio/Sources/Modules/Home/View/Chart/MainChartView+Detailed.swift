@@ -3,12 +3,12 @@ import CoreData
 import SwiftUI
 
 // Detailed Home chart style (`HomeChartStyle.detailed`). Everything specific to it lives
-// here so the stock chart stays as upstream ships it: a glucose card, then active insulin,
-// active carbs and basal in their own cards on the same time axis, with zoom buttons and a
-// Time in Range pill. Presentation only: it draws data the Home state model already exposes.
+// here so the stock chart stays as upstream ships it: one card with zoom buttons and a Time in
+// Range pill, the glucose plot, then active insulin, active carbs and basal strips on the same
+// time axis. Presentation only: it draws data the Home state model already exposes.
 //
-// One `MainChartView` still drives every card, so pan, pinch, double tap and press-and-hold
-// stay in sync: the scrolling canvas fills only the plot column, while card chrome, titles,
+// One `MainChartView` still drives glucose and strips, so pan, pinch, double tap and
+// press-and-hold stay in sync: the scrolling canvas fills only the plot column, while titles,
 // values and y-axis labels sit in a pinned background around it and never overlap a curve.
 
 extension MainChartHelper.Config {
@@ -89,30 +89,49 @@ extension Home.StateModel {
     }
 }
 
-/// Card geometry of the detailed stack, in points. Only the glucose plot height varies: Home
-/// sizes it so the top of the "Active insulin" card peeks above the bottom controls.
+/// Geometry of the detailed chart card, in points: zoom buttons and Time in Range on top, a
+/// thin event band (boluses, "now", unit), the glucose plot, three strips (active insulin,
+/// active carbs, basal) and the hour labels once at the bottom. Only the glucose plot height
+/// varies: Home gives it whatever the screen leaves, so the whole Home fits without scrolling.
 struct DetailedChartLayout: Equatable {
-    static let zoomBarHeight: CGFloat = 38
-    static let cardSpacing: CGFloat = 12
     /// Screen x where the plot column starts (card inset + card padding).
     static let plotLeading: CGFloat = 32
     /// From the plot's right edge to the screen edge: y-axis labels plus card inset.
     static let axisColumnWidth: CGFloat = 66
-    /// y-axis labels end this far from the screen edge.
-    static let axisLabelTrailing: CGFloat = 31
-    static let glucoseHeaderHeight: CGFloat = 55
-    static let glucoseFooterHeight: CGFloat = 39
-    static let minGlucosePlotHeight: CGFloat = 150
-    static let paneHeaderHeight: CGFloat = 58
-    static let panePlotHeight: CGFloat = 70
-    static let paneFooterHeight: CGFloat = 36
-    static var paneCardHeight: CGFloat { paneHeaderHeight + panePlotHeight + paneFooterHeight }
+    /// y-axis labels and strip values end this far from the screen edge.
+    static let axisLabelTrailing: CGFloat = 30
+    /// Zoom buttons and Time in Range pill.
+    static let headerHeight: CGFloat = 44
+    static let controlHeight: CGFloat = 28
+    /// Bolus marks, the "now" label and the glucose unit, above the glucose plot.
+    static let eventBandHeight: CGFloat = 18
+    /// Between the glucose plot and the first strip.
+    static let stripSeparation: CGFloat = 8
+    /// Separator line, then the strip name and current value on one row.
+    static let stripTitleHeight: CGFloat = 24
+    static let stripPlotHeight: CGFloat = 36
+    /// Below each strip's plot.
+    static let stripGap: CGFloat = 6
+    static let hourRowHeight: CGFloat = 22
+    static let minGlucosePlotHeight: CGFloat = 120
+    static var stripHeight: CGFloat { stripTitleHeight + stripPlotHeight + stripGap }
+    /// Card height without the glucose plot.
+    static var fixedHeight: CGFloat {
+        headerHeight + eventBandHeight + stripSeparation + 3 * stripHeight + hourRowHeight
+    }
 
     /// Glucose plot height.
     let glucose: CGFloat
 
-    var glucoseCardHeight: CGFloat { Self.glucoseHeaderHeight + glucose + Self.glucoseFooterHeight }
-    var canvasHeight: CGFloat { glucoseCardHeight + 3 * (Self.cardSpacing + Self.paneCardHeight) }
+    /// Height of the scrolling canvas: event band, glucose plot, strips and hour labels.
+    var canvasHeight: CGFloat {
+        Self.eventBandHeight + glucose + Self.stripSeparation + 3 * Self.stripHeight + Self.hourRowHeight
+    }
+
+    /// Top of strip `index` (0 insulin, 1 carbs, 2 basal) in the canvas, at its separator line.
+    func stripTop(_ index: Int) -> CGFloat {
+        Self.eventBandHeight + glucose + Self.stripSeparation + CGFloat(index) * Self.stripHeight
+    }
 
     static func plotWidth(screenWidth: CGFloat) -> CGFloat {
         screenWidth - plotLeading - axisColumnWidth
@@ -139,12 +158,29 @@ extension MainChartView {
     var detailedLayout: DetailedChartLayout { DetailedChartLayout(glucose: chartHeight) }
 
     /// Top of the glucose pane in the stack: below the basal strip in the stock style,
-    /// below the glucose card header in the detailed one.
-    var glucosePaneTop: CGFloat { isDetailed ? DetailedChartLayout.glucoseHeaderHeight : basalHeight }
+    /// below the event band in the detailed one.
+    var glucosePaneTop: CGFloat { isDetailed ? DetailedChartLayout.eventBandHeight : basalHeight }
 
-    var detailedZoomBar: some View {
+    /// One card: zoom buttons and Time in Range on top, then the chart stack with its titles,
+    /// current values and y-axis labels drawn beside the plot column, never inside it.
+    func detailedChartCard(_ chartStack: some View) -> some View {
         let palette = DetailedPalette(colorScheme)
-        return HStack(spacing: 11) {
+        return VStack(spacing: 0) {
+            detailedChartHeader(palette)
+            chartStack
+                .padding(.leading, DetailedChartLayout.plotLeading)
+                .padding(.trailing, DetailedChartLayout.axisColumnWidth)
+                .background(alignment: .topLeading) { detailedChartChrome(palette) }
+        }
+        .background {
+            Color.clear
+                .detailedCard(palette)
+                .padding(.horizontal, 16)
+        }
+    }
+
+    private func detailedChartHeader(_ palette: DetailedPalette) -> some View {
+        HStack(spacing: 8) {
             HStack(spacing: 0) {
                 ForEach(MainChartHelper.Config.detailedZoomPresets, id: \.self) { seconds in
                     let isSelected = abs(visibleSeconds - seconds) < 60
@@ -152,11 +188,11 @@ extension MainChartView {
                         selectZoomPreset(seconds)
                     } label: {
                         Text("\(Int(seconds / 3600))" + String(localized: "h", comment: "h"))
-                            .font(.subheadline).fontWeight(isSelected ? .semibold : .medium).fontDesign(.rounded)
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(isSelected ? Color.white : palette.muted)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(
-                                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
                                     .fill(isSelected ? Color.tabBar : Color.clear)
                             )
                             .contentShape(Rectangle())
@@ -166,13 +202,18 @@ extension MainChartView {
                 }
             }
             .padding(2)
-            .detailedCard(palette, cornerRadius: 12)
+            .frame(maxWidth: 228)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(palette.rail))
+
+            Spacer(minLength: 0)
 
             timeInRangePill(palette)
-                .frame(width: 100)
+                .frame(width: 124)
         }
-        .frame(height: DetailedChartLayout.zoomBarHeight)
-        .padding(.horizontal, 16)
+        .frame(height: DetailedChartLayout.controlHeight)
+        .padding(.horizontal, 28)
+        .padding(.top, 11)
+        .frame(height: DetailedChartLayout.headerHeight, alignment: .top)
     }
 
     /// Today's time in range (same figure as the stock stats banner); opens Statistics.
@@ -187,23 +228,31 @@ extension MainChartView {
         return Button {
             state.showModal(for: .statistics)
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ZStack {
-                    Circle().stroke(palette.rail, lineWidth: 2.5)
+                    Circle().stroke(palette.rail, lineWidth: 2.4)
                     Circle()
                         .trim(from: 0, to: hasData ? CGFloat(distribution.inRangePct / 100) : 0)
-                        .stroke(palette.glucose, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .stroke(palette.glucose, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                 }
-                .frame(width: 15, height: 15)
+                .frame(width: 12, height: 12)
+
+                Text(verbatim: "TIR")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+
+                Spacer(minLength: 2)
 
                 Text(tirString)
-                    .font(.subheadline).fontWeight(.semibold).fontDesign(.rounded)
+                    .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
+            .padding(.leading, 8)
+            .padding(.trailing, 9)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Capsule().fill(palette.card))
             .overlay(Capsule().strokeBorder(palette.border, lineWidth: 0.6))
@@ -217,60 +266,91 @@ extension MainChartView {
         .accessibilityAddTraits(.isButton)
     }
 
-    /// Card surfaces, titles, current values and y-axis labels, laid out around the plot
-    /// column. Drawn behind the chart stack; nothing here sits inside a plot area.
-    var detailedCards: some View {
+    /// Event band labels, strip titles, current values and y-axis labels, laid out around
+    /// the plot column. Drawn behind the chart stack; nothing here sits inside a plot area.
+    private func detailedChartChrome(_ palette: DetailedPalette) -> some View {
         let layout = detailedLayout
-        let palette = DetailedPalette(colorScheme)
         let iobScale = state.detailedIobScale
         let cob = state.enactedAndNonEnactedDeterminations.first?.cob ?? 0
+        let insulinUnit = String(localized: " U", comment: "Insulin unit")
+        let rateUnit = String(localized: " U/hr", comment: "Unit per hour with space")
 
-        return VStack(spacing: DetailedChartLayout.cardSpacing) {
-            detailedGlucoseCard(layout, palette)
-                .frame(height: layout.glucoseCardHeight)
+        return ZStack(alignment: .topLeading) {
+            detailedEventBandLabels(palette)
+            detailedGlucoseAxis(layout, palette)
 
-            detailedPaneCard(
+            detailedStripChrome(
+                0,
                 String(localized: "Active insulin", comment: "Detailed Home chart pane title"),
                 value: (Formatter.decimalFormatterWithTwoFractionDigits.string(from: state.currentIOB as NSNumber) ?? "0")
-                    + String(localized: " U", comment: "Insulin unit"),
+                    + insulinUnit,
                 tint: palette.insulin,
-                maxLabel: "\(Int(iobScale.upperBound))" + String(localized: " U", comment: "Insulin unit"),
+                maxLabel: "\(Int(iobScale.upperBound))" + insulinUnit,
                 zeroFraction: iobScale.upperBound / (iobScale.upperBound - iobScale.lowerBound),
+                layout,
                 palette
             )
 
-            detailedPaneCard(
+            detailedStripChrome(
+                1,
                 String(localized: "Active carbs", comment: "Detailed Home chart pane title"),
                 value: (Formatter.integerFormatter.string(from: NSNumber(value: cob)) ?? "0")
                     + String(localized: " g", comment: "gram of carbs"),
                 tint: palette.carbs,
                 maxLabel: "\(Int(state.detailedCobMax))" + String(localized: " g", comment: "gram of carbs"),
                 zeroFraction: 1,
+                layout,
                 palette
             )
 
-            detailedPaneCard(
+            detailedStripChrome(
+                2,
                 String(localized: "Basal Rate"),
                 value: (state.tempBasals.last?.tempBasal?.rate).map {
-                    (Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) ?? "\($0)")
-                        + String(localized: " U/hr", comment: "Unit per hour with space")
+                    (Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) ?? "\($0)") + rateUnit
                 } ?? "--",
                 tint: palette.basal,
-                maxLabel: "\(Int(state.detailedBasalMax))" + String(localized: " U/hr", comment: "Unit per hour with space"),
+                maxLabel: "\(Int(state.detailedBasalMax))" + rateUnit,
                 zeroFraction: 1,
+                layout,
                 palette
             )
         }
-        .padding(.horizontal, 16)
-        .frame(width: geo.size.width, alignment: .topLeading)
+        .frame(width: geo.size.width, height: layout.canvasHeight, alignment: .topLeading)
     }
 
-    private func detailedGlucoseCard(_ layout: DetailedChartLayout, _ palette: DetailedPalette) -> some View {
+    /// "now" just right of the current time line and the glucose unit over the axis column;
+    /// the bolus marks of the band scroll with the canvas.
+    @ViewBuilder private func detailedEventBandLabels(_ palette: DetailedPalette) -> some View {
+        let plotWidth = DetailedChartLayout.plotWidth(screenWidth: geo.size.width)
+        let nowX = CGFloat(Date.now.timeIntervalSince(scrollPosition) / visibleSeconds) * plotWidth
+        let y = DetailedChartLayout.eventBandHeight / 2 - 1
+
+        // hidden near the right edge, where it would run into the unit label
+        if nowX >= 0, nowX <= plotWidth - 40 {
+            Text(String(
+                localized: "chart.now",
+                defaultValue: "now",
+                comment: "Detailed Home chart: label of the current time line"
+            ))
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+                .frame(width: 60, alignment: .leading)
+                .position(x: DetailedChartLayout.plotLeading + nowX + 7 + 30, y: y)
+                .accessibilityHidden(true)
+        }
+        axisLabel(units.rawValue, size: 9, tint: palette.muted, isEmphasized: false)
+            .position(x: axisLabelCenterX, y: y)
+    }
+
+    /// Round values and the dashed high / low thresholds, beside the glucose plot.
+    private func detailedGlucoseAxis(_ layout: DetailedChartLayout, _ palette: DetailedPalette) -> some View {
         let domain = paddedGlucoseYDomain
         let span = max(Double(truncating: (domain.upperBound - domain.lowerBound) as NSNumber), 1)
         func y(_ value: Decimal) -> CGFloat {
             let fraction = Double(truncating: (value - domain.lowerBound) as NSNumber) / span
-            return DetailedChartLayout.glucoseHeaderHeight + layout.glucose * CGFloat(1 - min(max(fraction, 0), 1))
+            return layout.glucose * CGFloat(1 - min(max(fraction, 0), 1))
         }
         func label(_ value: Decimal) -> String {
             units == .mgdL
@@ -284,91 +364,79 @@ extension MainChartView {
             (label(high), y(high), palette.high),
             (label(low), y(low), palette.low)
         ]
-        // a round-value label never crowds a threshold label
+        // a round-value label never crowds a threshold label nor leaves the plot's height
         let ticks: [(text: String, y: CGFloat, tint: Color?)] = DetailedChartLayout.glucoseTicks(in: domain, units: units)
             .map { (text: label($0), y: y($0), tint: Color?.none) }
-            .filter { tick in thresholds.allSatisfy { abs($0.y - tick.y) >= 14 } }
-
-        let plotWidth = DetailedChartLayout.plotWidth(screenWidth: geo.size.width)
-        let nowX = CGFloat(Date.now.timeIntervalSince(scrollPosition) / visibleSeconds) * plotWidth
-        let cardWidth = geo.size.width - 32
-
-        return ZStack(alignment: .topLeading) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(String(localized: "Blood glucose", comment: "Detailed Home chart card title"))
-                    .font(.subheadline).fontWeight(.semibold)
-                    .foregroundStyle(palette.ink)
-                Spacer()
-                Text(units.rawValue)
-                    .font(.caption).fontWeight(.medium)
-                    .foregroundStyle(palette.muted)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-
-            if nowX >= 0, nowX <= plotWidth {
-                Text(String(
-                    localized: "chart.now",
-                    defaultValue: "now",
-                    comment: "Detailed Home chart: label of the current time line"
-                ))
-                    .font(.caption2).fontWeight(.medium)
-                    .foregroundStyle(palette.muted)
-                    .fixedSize()
-                    .position(x: DetailedChartLayout.plotLeading - 16 + nowX, y: 42)
+            .filter { tick in
+                tick.y >= 6 && tick.y <= layout.glucose - 6 && thresholds.allSatisfy { abs($0.y - tick.y) >= 14 }
             }
 
-            ForEach(Array((ticks + thresholds).enumerated()), id: \.offset) { _, tick in
-                axisLabel(tick.text, tint: tick.tint ?? palette.muted, isEmphasized: tick.tint != nil)
-                    .position(x: cardWidth - (DetailedChartLayout.axisLabelTrailing - 16) - 25, y: tick.y)
-            }
+        return ForEach(Array((ticks + thresholds).enumerated()), id: \.offset) { _, tick in
+            axisLabel(tick.text, size: 10.5, tint: tick.tint ?? palette.muted, isEmphasized: tick.tint != nil)
+                .position(x: axisLabelCenterX, y: DetailedChartLayout.eventBandHeight + tick.y)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .detailedCard(palette)
     }
 
-    /// Lower card: title and current value above the plot, 0 and top-of-scale labels beside it.
-    private func detailedPaneCard(
+    /// Separator, then strip name and current value on one row above the plot; top-of-scale
+    /// and zero labels beside the plot.
+    private func detailedStripChrome(
+        _ index: Int,
         _ title: String,
         value: String,
         tint: Color,
         maxLabel: String,
         zeroFraction: Double,
+        _ layout: DetailedChartLayout,
         _ palette: DetailedPalette
     ) -> some View {
-        let cardWidth = geo.size.width - 32
-        let plotTop = DetailedChartLayout.paneHeaderHeight
-        let plotHeight = DetailedChartLayout.panePlotHeight
-        let labelX = cardWidth - (DetailedChartLayout.axisLabelTrailing - 16) - 25
+        let top = layout.stripTop(index)
+        let plotTop = top + DetailedChartLayout.stripTitleHeight
+        let maxY = plotTop + 4
+        // the zero label sits just above the zero line, never on the top label
+        let zeroY = max(plotTop + DetailedChartLayout.stripPlotHeight * CGFloat(zeroFraction) - 4, maxY + 11)
 
         return ZStack(alignment: .topLeading) {
-            HStack(alignment: .firstTextBaseline) {
+            Rectangle()
+                .fill(palette.border)
+                .frame(
+                    width: geo.size.width - DetailedChartLayout.plotLeading - DetailedChartLayout.axisLabelTrailing,
+                    height: 0.6
+                )
+                .offset(x: DetailedChartLayout.plotLeading, y: top)
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title)
-                    .font(.subheadline).fontWeight(.semibold)
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(palette.ink)
-                Spacer()
+                Spacer(minLength: 4)
                 Text(value)
-                    .font(.headline).fontWeight(.semibold).fontDesign(.rounded)
+                    .font(.system(size: 13, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(tint)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.leading, DetailedChartLayout.plotLeading)
+            .padding(.trailing, DetailedChartLayout.axisLabelTrailing)
+            .frame(width: geo.size.width, height: 18)
+            .offset(y: top + 4)
             .accessibilityElement(children: .combine)
 
-            axisLabel(maxLabel, tint: palette.muted, isEmphasized: false)
-                .position(x: labelX, y: plotTop)
-            axisLabel("0", tint: palette.muted, isEmphasized: false)
-                .position(x: labelX, y: plotTop + plotHeight * CGFloat(zeroFraction))
+            axisLabel(maxLabel, size: 9, tint: palette.muted, isEmphasized: false)
+                .position(x: axisLabelCenterX, y: maxY)
+            axisLabel("0", size: 9, tint: palette.muted, isEmphasized: false)
+                .position(x: axisLabelCenterX, y: zeroY)
         }
-        .frame(height: DetailedChartLayout.paneCardHeight)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .detailedCard(palette)
     }
 
-    private func axisLabel(_ text: String, tint: Color, isEmphasized: Bool) -> some View {
+    /// Center x of the 50 pt wide y-axis labels, ending `axisLabelTrailing` from the screen edge.
+    private var axisLabelCenterX: CGFloat {
+        geo.size.width - DetailedChartLayout.axisLabelTrailing - 25
+    }
+
+    private func axisLabel(_ text: String, size: CGFloat, tint: Color, isEmphasized: Bool) -> some View {
         Text(text)
-            .font(.caption).fontWeight(isEmphasized ? .semibold : .medium)
+            .font(.system(size: size, weight: isEmphasized ? .semibold : .medium))
             .monospacedDigit()
             .foregroundStyle(tint)
             .lineLimit(1)
@@ -381,38 +449,66 @@ extension MainChartView {
 // MARK: - Canvas panes
 
 extension MainChartCanvas {
+    /// Event band, glucose plot, then the three strips, each below the room for its title
+    /// row (drawn by the pinned chrome), then the hour labels once for all of them.
     @ViewBuilder func detailedPanes() -> some View {
         let palette = DetailedPalette(colorScheme)
-        let gap = DetailedChartLayout.cardSpacing + DetailedChartLayout.paneHeaderHeight
+        let titleRoom = DetailedChartLayout.stripTitleHeight
+        let gap = DetailedChartLayout.stripGap
+        let plotHeight = DetailedChartLayout.stripPlotHeight
 
-        Color.clear.frame(height: DetailedChartLayout.glucoseHeaderHeight)
+        detailedBolusBand(palette)
         mainChart
-        detailedHourLabels(palette, height: DetailedChartLayout.glucoseFooterHeight)
+        Color.clear.frame(height: DetailedChartLayout.stripSeparation + titleRoom)
+        detailedIobChart(palette).frame(width: canvasWidth, height: plotHeight)
+        Color.clear.frame(height: gap + titleRoom)
+        detailedCobChart(palette).frame(width: canvasWidth, height: plotHeight)
+        Color.clear.frame(height: gap + titleRoom)
+        detailedBasalChart(palette).frame(width: canvasWidth, height: plotHeight)
         Color.clear.frame(height: gap)
-        detailedIobChart(palette).frame(width: canvasWidth, height: DetailedChartLayout.panePlotHeight)
-        detailedHourLabels(palette, height: DetailedChartLayout.paneFooterHeight)
-        Color.clear.frame(height: gap)
-        detailedCobChart(palette).frame(width: canvasWidth, height: DetailedChartLayout.panePlotHeight)
-        detailedHourLabels(palette, height: DetailedChartLayout.paneFooterHeight)
-        Color.clear.frame(height: gap)
-        detailedBasalChart(palette).frame(width: canvasWidth, height: DetailedChartLayout.panePlotHeight)
-        detailedHourLabels(palette, height: DetailedChartLayout.paneFooterHeight)
+        detailedHourLabels(palette)
     }
 
-    /// Hour labels under a card's plot, at the same absolute marks as the grid lines.
-    private func detailedHourLabels(_ palette: DetailedPalette, height: CGFloat) -> some View {
+    /// Boluses as small triangles above the glucose plot; amounts are read by pressing and
+    /// holding the chart.
+    private func detailedBolusBand(_ palette: DetailedPalette) -> some View {
+        let window = max(windowEnd.timeIntervalSince(windowStart), 1)
+        let dates = windowedInsulin.compactMap { event -> Date? in
+            guard let amount = event.bolus?.amount, amount != 0 else { return nil }
+            return event.timestamp
+        }
+        return ZStack(alignment: .topLeading) {
+            ForEach(Array(dates.enumerated()), id: \.offset) { _, date in
+                Image(systemName: "arrowtriangle.down.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(palette.insulin)
+                    .position(
+                        x: CGFloat(date.timeIntervalSince(windowStart) / window) * canvasWidth,
+                        y: DetailedChartLayout.eventBandHeight / 2 - 1
+                    )
+            }
+        }
+        .frame(width: canvasWidth, height: DetailedChartLayout.eventBandHeight, alignment: .topLeading)
+        .accessibilityHidden(true)
+    }
+
+    /// Hour labels under the last strip, at the same absolute marks as the grid lines.
+    private func detailedHourLabels(_ palette: DetailedPalette) -> some View {
         let window = max(windowEnd.timeIntervalSince(windowStart), 1)
         return ZStack(alignment: .topLeading) {
             ForEach(hourAxisMarks(over: windowStart ... windowEnd), id: \.self) { date in
                 Text(date.formatted(.dateTime.hour(.defaultDigits(amPM: .narrow))))
-                    .font(.caption).fontWeight(.medium)
+                    .font(.system(size: 10.5, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(palette.muted)
                     .fixedSize()
-                    .position(x: CGFloat(date.timeIntervalSince(windowStart) / window) * canvasWidth, y: 18)
+                    .position(
+                        x: CGFloat(date.timeIntervalSince(windowStart) / window) * canvasWidth,
+                        y: DetailedChartLayout.hourRowHeight / 2
+                    )
             }
         }
-        .frame(width: canvasWidth, height: height, alignment: .topLeading)
+        .frame(width: canvasWidth, height: DetailedChartLayout.hourRowHeight, alignment: .topLeading)
     }
 
     /// In-range band, round-value grid lines and dashed high (yellow) / low (red) thresholds.
@@ -623,35 +719,18 @@ extension MainChartCanvas {
 
 // MARK: - Treatment marks
 
-/// Boluses and carbs as small marks without numbers: boluses along the top of the glucose
-/// pane, carbs (and fat/protein equivalents) along the bottom. Values are read by pressing
-/// and holding the chart.
+/// Carbs (and fat/protein equivalents) as small dots along the bottom of the glucose pane,
+/// without numbers; boluses sit in the event band above it. Values are read by pressing and
+/// holding the chart.
 struct DetailedTreatmentMarks: ChartContent {
-    let insulinData: [PumpEventStored]
     let carbData: [CarbEntryStored]
     let fpuData: [CarbEntryStored]
     let yDomain: ClosedRange<Decimal>
     let palette: DetailedPalette
 
-    private var bolusY: Decimal { yDomain.upperBound - (yDomain.upperBound - yDomain.lowerBound) * 0.04 }
     private var carbY: Decimal { yDomain.lowerBound + (yDomain.upperBound - yDomain.lowerBound) * 0.04 }
 
     var body: some ChartContent {
-        ForEach(insulinData) { insulin in
-            let amount = insulin.bolus?.amount ?? 0 as NSDecimalNumber
-            if amount != 0, let date = insulin.timestamp {
-                PointMark(
-                    x: .value("Time", date, unit: .second),
-                    y: .value("Value", bolusY)
-                )
-                .symbol {
-                    Image(systemName: "arrowtriangle.down.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(palette.insulin)
-                }
-            }
-        }
-
         ForEach(carbData) { carb in
             if let date = carb.date {
                 PointMark(
@@ -677,6 +756,52 @@ struct DetailedTreatmentMarks: ChartContent {
                         .fill(Color.brown)
                         .frame(width: 5, height: 5)
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Forecast cone
+
+/// The stock forecast cone (same min/max bounds and 2.5 h horizon), drawn stronger for the
+/// detailed cards and with a dashed line through its middle so the expected path reads at a glance.
+struct DetailedForecastCone: ChartContent {
+    let minForecast: [Int]
+    let maxForecast: [Int]
+    let units: GlucoseUnits
+    let maxValue: Decimal
+    let start: Date
+    let palette: DetailedPalette
+
+    private func display(_ mgdL: Int) -> Decimal {
+        let value = units == .mgdL ? Decimal(mgdL) : Decimal(mgdL).asMmolL
+        return min(value, maxValue)
+    }
+
+    var body: some ChartContent {
+        ForEach(0 ..< min(minForecast.count, maxForecast.count), id: \.self) { index in
+            let date = start.addingTimeInterval(TimeInterval(index * 300))
+            if date <= Date(timeIntervalSinceNow: TimeInterval(hours: 2.5)) {
+                // equal bounds still get a sliver, as in the stock cone
+                let spread = minForecast[index] == maxForecast[index] ? 1 : 0
+                let lower = display(min(minForecast[index], maxForecast[index]) - spread)
+                let upper = display(max(minForecast[index], maxForecast[index]) + spread)
+                AreaMark(
+                    x: .value("Time", date),
+                    yStart: .value("Min Value", lower),
+                    yEnd: .value("Max Value", upper)
+                )
+                .foregroundStyle(palette.insulin.opacity(0.3))
+                .interpolationMethod(.catmullRom)
+
+                LineMark(
+                    x: .value("Time", date),
+                    y: .value("Middle", (lower + upper) / 2),
+                    series: .value("Series", "ForecastMiddle")
+                )
+                .foregroundStyle(palette.insulin)
+                .lineStyle(StrokeStyle(lineWidth: 1.6, dash: [5, 4]))
+                .interpolationMethod(.catmullRom)
             }
         }
     }

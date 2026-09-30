@@ -1,23 +1,24 @@
 import SwiftUI
 
 // Detailed Home style (`HomeChartStyle.detailed`): a large glucose value, loop and pump cards,
-// a card with IOB / COB / basal / eventual glucose, then the detailed chart cards, all in one
-// vertically scrolling column. Kept apart from the stock header so the `.trio` layout stays as
-// upstream ships it. Presentation only.
+// a row with IOB / COB / basal / eventual glucose, then one chart card. Like the stock Home it
+// fits the screen without scrolling: the glucose plot takes what the fixed rows leave. Kept
+// apart from the stock header so the `.trio` layout stays as upstream ships it. Presentation only.
 
 enum DetailedHomeLayout {
-    static let topPadding: CGFloat = 12
+    static let topPadding: CGFloat = 0
+    static let bottomPadding: CGFloat = 12
     static let glucoseRowHeight: CGFloat = 64
-    static let cardHeight: CGFloat = 119
-    static let statsHeight: CGFloat = 67
+    /// Between the glucose row and the loop and pump cards.
+    static let glucoseRowSpacing: CGFloat = 8
+    static let cardHeight: CGFloat = 82
+    static let statsHeight: CGFloat = 50
     static let horizontalPadding: CGFloat = 16
     static let cardSpacing: CGFloat = 10
-    static let sectionSpacing: CGFloat = 14
-    /// How much of the "Active insulin" card shows above the bottom controls on opening.
-    static let nextCardPeek: CGFloat = 42
-    /// Top of the glucose card in the scrolling column.
+    static let sectionSpacing: CGFloat = 10
+    /// Top of the chart card.
     static var chartCardTop: CGFloat {
-        topPadding + glucoseRowHeight + cardHeight + statsHeight + DetailedChartLayout.zoomBarHeight + 4 * sectionSpacing
+        topPadding + glucoseRowHeight + glucoseRowSpacing + cardHeight + statsHeight + 2 * sectionSpacing
     }
 }
 
@@ -70,7 +71,7 @@ extension Home.RootView {
                 }
             }
             .frame(
-                height: DetailedHomeLayout.glucoseRowHeight + DetailedHomeLayout.sectionSpacing
+                height: DetailedHomeLayout.glucoseRowHeight + DetailedHomeLayout.glucoseRowSpacing
                     + DetailedHomeLayout.cardHeight
             )
 
@@ -80,18 +81,17 @@ extension Home.RootView {
             detailedMainChart(geo: geo)
         }
         .padding(.top, DetailedHomeLayout.topPadding)
-        .padding(.bottom, DetailedHomeLayout.sectionSpacing)
+        .padding(.bottom, DetailedHomeLayout.bottomPadding)
         .frame(maxWidth: .infinity)
         .task(id: chartSelection) { await updateChartReadout() }
     }
 
-    /// The glucose card fills the screen down to a peek of the next card; the lower cards
-    /// are reached by scrolling.
+    /// The chart card reaches down to the bottom controls; its glucose plot is the only
+    /// flexible part, so nothing below it needs scrolling.
     @ViewBuilder private func detailedMainChart(geo: GeometryProxy) -> some View {
-        let glucoseCardHeight = geo.size.height - detailedBottomZoneHeight - DetailedHomeLayout.chartCardTop
-            - DetailedChartLayout.cardSpacing - DetailedHomeLayout.nextCardPeek
         let glucosePlotHeight = max(
-            glucoseCardHeight - DetailedChartLayout.glucoseHeaderHeight - DetailedChartLayout.glucoseFooterHeight,
+            geo.size.height - detailedBottomZoneHeight - DetailedHomeLayout.chartCardTop
+                - DetailedChartLayout.fixedHeight - DetailedHomeLayout.bottomPadding,
             DetailedChartLayout.minGlucosePlotHeight
         )
         MainChartView(
@@ -115,7 +115,7 @@ extension Home.RootView {
 
     @ViewBuilder private func detailedHeader(width: CGFloat) -> some View {
         let inner = width - 2 * DetailedHomeLayout.horizontalPadding - DetailedHomeLayout.cardSpacing
-        VStack(spacing: DetailedHomeLayout.sectionSpacing) {
+        VStack(spacing: DetailedHomeLayout.glucoseRowSpacing) {
             HStack(spacing: 12) {
                 detailedGlucoseRow
                 alarmsPill
@@ -272,7 +272,7 @@ extension Home.RootView {
             )
         }
         .frame(height: DetailedHomeLayout.statsHeight)
-        .detailedCard(palette, cornerRadius: 17)
+        .detailedCard(palette, cornerRadius: 15)
     }
 
     /// Label above; value and unit on one baseline.
@@ -283,19 +283,19 @@ extension Home.RootView {
         tint: Color,
         _ palette: DetailedPalette
     ) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             Text(title)
-                .font(.footnote).fontWeight(.medium)
+                .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value)
-                    .font(.title3).fontWeight(.bold).fontDesign(.rounded)
+                    .font(.system(size: 19, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(tint)
                 Text(unit)
-                    .font(.caption).fontWeight(.medium)
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(palette.muted)
             }
             .lineLimit(1)
@@ -309,13 +309,12 @@ extension Home.RootView {
     private func statDivider(_ palette: DetailedPalette) -> some View {
         Rectangle()
             .fill(palette.border)
-            .frame(width: 0.65, height: 38)
+            .frame(width: 0.65, height: 28)
     }
 
     // MARK: - Chart readout
 
-    /// Press-and-hold readout, pinned to the top of the screen so it stays visible whichever
-    /// card is being scrubbed.
+    /// Press-and-hold readout, over the glucose row at the top of the screen.
     @ViewBuilder func detailedChartReadout() -> some View {
         if let readoutDate = chartReadoutDate,
            let selectedGlucose = ChartSelectionLookup.glucose(at: readoutDate, in: state.glucoseFromPersistence)
@@ -461,9 +460,9 @@ struct DetailedGlucoseRow: View {
                 : (units == .mgdL ? mgdL.description : mgdL.formattedAsMmolL)
 
             HStack(alignment: .center, spacing: 16) {
-                HStack(alignment: .center, spacing: 6) {
+                HStack(alignment: .center, spacing: 8) {
                     Text(value)
-                        .font(.system(size: 64, weight: .bold, design: .rounded))
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundStyle(color)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -474,7 +473,7 @@ struct DetailedGlucoseRow: View {
                                 Image(systemName: arrow.symbol)
                             }
                         }
-                        .font(.system(size: 30, weight: .bold))
+                        .font(.system(size: 26, weight: .bold))
                         .foregroundStyle(color)
                     }
                 }
@@ -482,18 +481,18 @@ struct DetailedGlucoseRow: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if let deltaString {
                         Text(deltaString)
-                            .font(.system(size: 26, weight: .semibold, design: .rounded))
+                            .font(.system(size: 23, weight: .semibold, design: .rounded))
                             .foregroundStyle(palette.ink)
                     }
                     Text(units.rawValue)
-                        .font(.subheadline).fontWeight(.medium)
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(palette.muted)
                 }
 
                 Spacer(minLength: 4)
 
                 Text(TimeAgoFormatter.minutesAgo(from: reading.date))
-                    .font(.callout).fontWeight(.medium)
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(palette.muted)
                     .lineLimit(1)
             }
@@ -508,7 +507,7 @@ struct DetailedGlucoseRow: View {
         } else {
             HStack(spacing: 10) {
                 Text(verbatim: "--")
-                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
                     .foregroundStyle(palette.muted)
                 if let status = cgmStatus, !status.localizedMessage.isEmpty {
                     Text(status.localizedMessage.replacingOccurrences(of: "\n", with: " "))
@@ -563,57 +562,56 @@ struct DetailedLoopCard: View {
     private var caption: String {
         if isLooping { return String(localized: "looping") }
         if manualTempBasal { return String(localized: "Manual") }
-        guard minutesSinceLoop != nil else { return "--" }
-        return String(
-            format: String(localized: "last %@ ago", comment: "Detailed Home loop card: time since last loop"),
-            TimeAgoFormatter.minutesAgo(from: lastLoopDate)
-        )
+        guard let minutesSinceLoop else { return "--" }
+        return "\(minutesSinceLoop) " + String(localized: "min ago")
     }
 
     var body: some View {
         let palette = DetailedPalette(colorScheme)
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             ZStack {
-                Circle().stroke(palette.rail, lineWidth: 4)
+                Circle().stroke(palette.rail, lineWidth: 3)
                 if ringGap == 0 {
-                    Circle().stroke(color, lineWidth: 4)
+                    Circle().stroke(color, lineWidth: 3)
                 } else {
                     Circle()
                         .trim(from: ringGap / 2, to: 0.5 - ringGap / 2)
-                        .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     Circle()
                         .trim(from: 0.5 + ringGap / 2, to: 1 - ringGap / 2)
-                        .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 }
                 if isLooping {
                     ProgressView()
+                        .controlSize(.small)
                 } else if !manualTempBasal, let symbol = LoopView.centerSymbol(automation: dosingMode.automation) {
                     Image(systemName: symbol)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(color)
                 } else if let minutesSinceLoop {
-                    Text(verbatim: "\(minutesSinceLoop)'")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    Text(verbatim: "\(minutesSinceLoop)\u{2032}")
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(color)
                 }
             }
-            .frame(width: 46, height: 46)
-            .padding(.bottom, 4)
+            .frame(width: 34, height: 34)
+            .padding(.bottom, 3)
 
             Text(dosingMode.displayName)
-                .font(.subheadline).fontWeight(.semibold)
+                .font(.system(size: 12.5, weight: .semibold))
                 .foregroundStyle(palette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(caption)
-                .font(.footnote).fontWeight(.medium)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
-        .padding(8)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .detailedCard(palette)
+        .detailedCard(palette, cornerRadius: 17)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text([dosingMode.displayName, caption].joined(separator: ", ")))
     }

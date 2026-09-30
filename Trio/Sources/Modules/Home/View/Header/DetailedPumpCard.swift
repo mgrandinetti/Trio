@@ -45,13 +45,15 @@ struct DetailedPumpCard: View {
                     pumpStatusHighlightMessage: pumpStatusHighlightMessage,
                     battery: battery
                 )
+                // the stock column is taller than this compact card
+                .scaleEffect(0.8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .detailedCard(palette)
+        .detailedCard(palette, cornerRadius: 17)
     }
 
     private func podContent(expiresAt: Date) -> some View {
@@ -59,13 +61,13 @@ struct DetailedPumpCard: View {
             VStack(spacing: 4) {
                 podGlyph
                 Text(verbatim: name.localizedCaseInsensitiveContains("dash") ? "DASH" : "POD")
-                    .font(.caption2).fontWeight(.bold)
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(palette.muted)
             }
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(name)
-                    .font(.footnote).fontWeight(.semibold)
+                    .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -124,7 +126,7 @@ struct DetailedPumpCard: View {
     @ViewBuilder private var statusLine: some View {
         if let pumpStatusHighlightMessage {
             Label(pumpStatusHighlightMessage.replacingOccurrences(of: "\n", with: " "), systemImage: "exclamationmark.triangle.fill")
-                .font(.caption2).fontWeight(.bold)
+                .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(palette.carbs)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -132,12 +134,12 @@ struct DetailedPumpCard: View {
             HStack(spacing: 6) {
                 Circle()
                     .fill(palette.glucose)
-                    .frame(width: 5, height: 5)
+                    .frame(width: 4, height: 4)
                 Text(String(
                     format: String(localized: "Communication %@ ago", comment: "Detailed Home pump card: last pump communication"),
                     TimeAgoFormatter.minutesAgo(from: lastCommsDate)
                 ))
-                .font(.caption).fontWeight(.medium)
+                .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -145,19 +147,20 @@ struct DetailedPumpCard: View {
         }
     }
 
+    /// Title and value on one row, the level bar below.
     private func bar(title: String, value: String, fraction: Double, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.footnote)
+                    .font(.system(size: 11))
                     .foregroundStyle(palette.muted)
                 Spacer(minLength: 4)
                 Text(value)
-                    .font(.footnote).fontWeight(.semibold).fontDesign(.rounded)
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(color)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(palette.rail)
@@ -165,7 +168,7 @@ struct DetailedPumpCard: View {
                         .frame(width: geo.size.width * fraction)
                 }
             }
-            .frame(height: 4.5)
+            .frame(height: 3)
         }
     }
 

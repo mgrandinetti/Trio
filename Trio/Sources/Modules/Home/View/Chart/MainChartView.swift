@@ -110,13 +110,7 @@ struct MainChartView: View {
 
     var body: some View {
         if isDetailed {
-            VStack(spacing: DetailedHomeLayout.sectionSpacing) {
-                detailedZoomBar
-                chartStack
-                    .padding(.leading, DetailedChartLayout.plotLeading)
-                    .padding(.trailing, DetailedChartLayout.axisColumnWidth)
-                    .background(alignment: .topLeading) { detailedCards }
-            }
+            detailedChartCard(chartStack)
         } else {
             chartStack
         }
@@ -157,7 +151,7 @@ struct MainChartView: View {
             // (~9x the screen); an unconstrained sibling inherits that width and its
             // trailing-aligned content renders thousands of points off-screen — which is
             // exactly how three axis-overlay attempts rendered "nothing".
-            // the detailed style draws its axis labels beside the plot (detailedCards)
+            // the detailed style draws its axis labels beside the plot (detailedChartChrome)
             if !isDetailed {
                 VStack(spacing: 0) {
                     Color.clear.frame(height: glucosePaneTop)
@@ -988,7 +982,6 @@ extension MainChartCanvas {
 
             if detailedLayout != nil {
                 DetailedTreatmentMarks(
-                    insulinData: insulin,
                     carbData: carbs,
                     fpuData: fpus,
                     yDomain: glucoseYDomain,
@@ -1012,15 +1005,26 @@ extension MainChartCanvas {
                 )
             }
 
-            ForecastView(
-                preprocessedData: state.preprocessedData,
-                minForecast: state.minForecast,
-                maxForecast: state.maxForecast,
-                units: state.units,
-                maxValue: state.maxYAxisValue,
-                forecastDisplayType: state.forecastDisplayType,
-                lastDeterminationDate: state.determinationsFromPersistence.first?.deliverAt ?? .distantPast
-            )
+            if detailedLayout != nil, state.forecastDisplayType != .lines {
+                DetailedForecastCone(
+                    minForecast: state.minForecast,
+                    maxForecast: state.maxForecast,
+                    units: state.units,
+                    maxValue: state.maxYAxisValue,
+                    start: state.determinationsFromPersistence.first?.deliverAt ?? .distantPast,
+                    palette: DetailedPalette(colorScheme)
+                )
+            } else {
+                ForecastView(
+                    preprocessedData: state.preprocessedData,
+                    minForecast: state.minForecast,
+                    maxForecast: state.maxForecast,
+                    units: state.units,
+                    maxValue: state.maxYAxisValue,
+                    forecastDisplayType: state.forecastDisplayType,
+                    lastDeterminationDate: state.determinationsFromPersistence.first?.deliverAt ?? .distantPast
+                )
+            }
 
             GlucoseChartView(
                 glucoseData: glucose,
