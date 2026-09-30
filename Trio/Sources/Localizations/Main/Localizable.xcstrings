@@ -1111,17 +1111,6 @@
         }
       }
     },
-    "Blood glucose" : {
-      "comment" : "Detailed Home chart card title",
-      "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Glicemia"
-          }
-        }
-      }
-    },
     "chart.now" : {
       "comment" : "Detailed Home chart: label of the current time line",
       "localizations" : {
@@ -1199,17 +1188,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Serbatoio"
-          }
-        }
-      }
-    },
-    "last %@ ago" : {
-      "comment" : "Detailed Home loop card: time since last loop",
-      "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ultimo %@ fa"
           }
         }
       }

@@ -175,8 +175,8 @@ extension Home {
                     bottomControls()
                 }
             }
-            // detailed style: the readout stays in view while its cards scroll, and a
-            // press-and-hold scrub never drags the page
+            // detailed style: the readout sits over the glucose row, and a press-and-hold
+            // scrub never rubber-bands the page
             .overlay(alignment: .top) {
                 if state.homeChartStyle == .detailed {
                     detailedChartReadout()
