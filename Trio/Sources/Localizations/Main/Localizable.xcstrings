@@ -1160,13 +1160,19 @@
         }
       }
     },
-    "Eventual" : {
-      "comment" : "Detailed Home stats row title",
+    "detailed.predicted" : {
+      "comment" : "Detailed Home glucose row: caption above the eventual glucose forecast",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "predicted"
+          }
+        },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eventuale"
+            "value" : "previsto"
           }
         }
       }

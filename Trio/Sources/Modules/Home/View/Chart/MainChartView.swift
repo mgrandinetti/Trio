@@ -308,6 +308,7 @@ extension MainChartView {
     /// markers `CarbView` pins to the old baseline) render fully instead of straddling the
     /// plot edge. Also gives the plot visual breathing room at top and bottom.
     var paddedGlucoseYDomain: ClosedRange<Decimal> {
+        if isDetailed { return detailedGlucoseYDomain }
         let padding: Decimal = 25 // mg/dL
         let lower = state.minYAxisValue - padding
         let upper = state.maxYAxisValue + padding
@@ -1010,7 +1011,7 @@ extension MainChartCanvas {
                     minForecast: state.minForecast,
                     maxForecast: state.maxForecast,
                     units: state.units,
-                    maxValue: state.maxYAxisValue,
+                    maxValue: glucoseYDomain.upperBound,
                     start: state.determinationsFromPersistence.first?.deliverAt ?? .distantPast,
                     palette: DetailedPalette(colorScheme)
                 )

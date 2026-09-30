@@ -53,7 +53,8 @@ struct DetailedPalette {
         basal = rgb(dark ? 0xBCA5FF : 0x6C46B5)
         high = rgb(dark ? 0xF4D267 : 0x896407)
         low = rgb(dark ? 0xFF939A : 0xB92E40)
-        band = glucose.opacity(dark ? 0.16 : 0.09)
+        // barely there, so the curves drawn over it keep their contrast
+        band = glucose.opacity(dark ? 0.06 : 0.05)
     }
 }
 
@@ -71,22 +72,36 @@ extension View {
     }
 }
 
-extension Home.StateModel {
-    /// Rounded y-scales of the lower cards, shared by the charts and their axis labels.
-    var detailedIobScale: ClosedRange<Double> {
-        let upper = max(ceil((maxValueIobChart as NSDecimalNumber).doubleValue), 1)
-        return min((minValueIobChart as NSDecimalNumber).doubleValue, 0) ... upper
+/// Rounded scales of the detailed chart, shared by the plots and their axis labels: the top
+/// of the glucose plot and of the three strips, fitted to the data of the visible hours.
+struct DetailedChartScales: Equatable {
+    /// Top of the glucose plot, mg/dL: 250, 300, then 400.
+    var glucoseTop: Decimal = 250
+    var iob: ClosedRange<Double> = 0 ... 1
+    var cobMax: Double = 10
+    var basalMax: Double = 1
+
+    /// Round value above `value`: steps of 1 up to 10, of 10 up to 100, then of 50.
+    static func roundedMax(_ value: Double, minimum: Double) -> Double {
+        let step: Double = value <= 10 ? 1 : (value <= 100 ? 10 : 50)
+        return max(ceil(value / step) * step, minimum)
     }
 
-    var detailedCobMax: Double {
-        max(ceil((maxValueCobChart as NSDecimalNumber).doubleValue / 10) * 10, 10)
+    /// 250 while glucose and forecast stay below 200 mg/dL, 300 below 275, else 400 (or the
+    /// stock top if higher).
+    static func glucoseTop(highest: Decimal, stockTop: Decimal) -> Decimal {
+        if highest < 200 { return 250 }
+        if highest < 275 { return 300 }
+        return max(400, stockTop)
     }
+}
 
-    var detailedBasalMax: Double {
-        let rates = tempBasals.compactMap { $0.tempBasal?.rate?.doubleValue }
-            + basalProfile.map { ($0.rate as NSDecimalNumber).doubleValue }
-        return max(ceil(rates.max() ?? 0), 1)
-    }
+/// Last computed scales. The shell reads them several times per frame while panning; they are
+/// recomputed only when the visible window moves into another 5-minute step or the data change.
+/// Read and written from view bodies only, on the main thread.
+private enum DetailedScaleCache {
+    nonisolated(unsafe) static var key: [AnyHashable] = []
+    nonisolated(unsafe) static var scales = DetailedChartScales()
 }
 
 /// Geometry of the detailed chart card, in points: zoom buttons and Time in Range on top, a
@@ -104,11 +119,11 @@ struct DetailedChartLayout: Equatable {
     static let headerHeight: CGFloat = 44
     static let controlHeight: CGFloat = 28
     /// Bolus marks, the "now" label and the glucose unit, above the glucose plot.
-    static let eventBandHeight: CGFloat = 18
+    static let eventBandHeight: CGFloat = 22
     /// Between the glucose plot and the first strip.
     static let stripSeparation: CGFloat = 8
     /// Separator line, then the strip name and current value on one row.
-    static let stripTitleHeight: CGFloat = 24
+    static let stripTitleHeight: CGFloat = 28
     static let stripPlotHeight: CGFloat = 36
     /// Below each strip's plot.
     static let stripGap: CGFloat = 6
@@ -122,6 +137,9 @@ struct DetailedChartLayout: Equatable {
 
     /// Glucose plot height.
     let glucose: CGFloat
+    /// Scales of the glucose plot and the strips; part of the canvas equality, so the canvas
+    /// is laid out again only when one of them changes.
+    let scales: DetailedChartScales
 
     /// Height of the scrolling canvas: event band, glucose plot, strips and hour labels.
     var canvasHeight: CGFloat {
@@ -137,12 +155,13 @@ struct DetailedChartLayout: Equatable {
         screenWidth - plotLeading - axisColumnWidth
     }
 
-    /// Round values for the glucose grid lines and labels (50 mg/dL or 2 mmol/L apart).
+    /// Round values for the glucose grid lines and labels (50 mg/dL or 2 mmol/L apart), the
+    /// top of the plot included.
     static func glucoseTicks(in domain: ClosedRange<Decimal>, units: GlucoseUnits) -> [Decimal] {
         let step: Decimal = units == .mgdL ? 50 : 2
         var tick = step * Decimal(Int(truncating: (domain.lowerBound / step) as NSNumber) + 1)
         var ticks: [Decimal] = []
-        while tick < domain.upperBound {
+        while tick <= domain.upperBound {
             ticks.append(tick)
             tick += step
         }
@@ -155,7 +174,75 @@ struct DetailedChartLayout: Equatable {
 extension MainChartView {
     var isDetailed: Bool { chartStyle == .detailed }
 
-    var detailedLayout: DetailedChartLayout { DetailedChartLayout(glucose: chartHeight) }
+    var detailedLayout: DetailedChartLayout { DetailedChartLayout(glucose: chartHeight, scales: detailedScales) }
+
+    /// Glucose y-domain of the detailed style: same floor as the stock chart, top from
+    /// `DetailedChartScales.glucoseTop`.
+    var detailedGlucoseYDomain: ClosedRange<Decimal> {
+        let lower = state.minYAxisValue - 25
+        let upper = detailedScales.glucoseTop
+        return units == .mgdL ? lower ... upper : lower.asMmolL ... upper.asMmolL
+    }
+
+    /// Scales fitted to the visible hours (plus the forecast when it is in view), in
+    /// 5-minute steps of the window, cached between frames.
+    var detailedScales: DetailedChartScales {
+        let step: TimeInterval = 300
+        let start = Date(
+            timeIntervalSinceReferenceDate: (scrollPosition.timeIntervalSinceReferenceDate / step).rounded(.down) * step
+        )
+        let window = start ... start.addingTimeInterval(visibleSeconds + step)
+        let glucose = state.glucoseFromPersistence
+        let determinations = state.enactedAndNonEnactedDeterminations
+        let tempBasals = state.tempBasals
+        let forecastStart = state.determinationsFromPersistence.first?.deliverAt
+        let key: [AnyHashable] = [
+            start, visibleSeconds,
+            glucose.count, glucose.first?.objectID, glucose.last?.objectID,
+            determinations.count, determinations.first?.objectID, determinations.last?.objectID,
+            tempBasals.count, tempBasals.first?.objectID, tempBasals.last?.objectID,
+            state.basalProfile.map(\.rate), state.maxForecast, forecastStart, state.maxYAxisValue,
+            state.iobProjection.map(\.value), state.cobProjection.map(\.value),
+            state.iobProjection.first?.date, state.cobProjection.first?.date
+        ]
+        if key == DetailedScaleCache.key { return DetailedScaleCache.scales }
+
+        var highestGlucose = glucose.reduce(Decimal(0)) { highest, reading in
+            guard let date = reading.date, window.contains(date) else { return highest }
+            return max(highest, Decimal(reading.glucose))
+        }
+        if let forecastStart {
+            for (index, value) in state.maxForecast.enumerated()
+                where window.contains(forecastStart.addingTimeInterval(TimeInterval(index) * 300))
+            {
+                highestGlucose = max(highestGlucose, Decimal(value))
+            }
+        }
+
+        let visibleDeterminations = determinations.filter { $0.deliverAt.map { window.contains($0) } ?? false }
+        let iobValues = visibleDeterminations.compactMap { $0.iob?.doubleValue }
+            + state.iobProjection.filter { window.contains($0.date) }.map(\.value)
+        let cobValues = visibleDeterminations.map { Double($0.cob) }
+            + state.cobProjection.filter { window.contains($0.date) }.map(\.value)
+        // a temp basal started before the window still runs into it
+        let basalRates = tempBasals.compactMap { event -> Double? in
+            guard let timestamp = event.timestamp, let tempBasal = event.tempBasal,
+                  timestamp <= window.upperBound,
+                  timestamp.addingTimeInterval(TimeInterval(tempBasal.duration) * 60) >= window.lowerBound
+            else { return nil }
+            return tempBasal.rate?.doubleValue
+        } + state.basalProfile.map { ($0.rate as NSDecimalNumber).doubleValue }
+
+        let scales = DetailedChartScales(
+            glucoseTop: DetailedChartScales.glucoseTop(highest: highestGlucose, stockTop: state.maxYAxisValue),
+            iob: min(iobValues.min() ?? 0, 0) ... DetailedChartScales.roundedMax(iobValues.max() ?? 0, minimum: 1),
+            cobMax: DetailedChartScales.roundedMax(cobValues.max() ?? 0, minimum: 10),
+            basalMax: DetailedChartScales.roundedMax(basalRates.max() ?? 0, minimum: 1)
+        )
+        DetailedScaleCache.key = key
+        DetailedScaleCache.scales = scales
+        return scales
+    }
 
     /// Top of the glucose pane in the stack: below the basal strip in the stock style,
     /// below the event band in the detailed one.
@@ -188,7 +275,7 @@ extension MainChartView {
                         selectZoomPreset(seconds)
                     } label: {
                         Text("\(Int(seconds / 3600))" + String(localized: "h", comment: "h"))
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(isSelected ? Color.white : palette.muted)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(
@@ -239,13 +326,13 @@ extension MainChartView {
                 .frame(width: 12, height: 12)
 
                 Text(verbatim: "TIR")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(palette.muted)
 
                 Spacer(minLength: 2)
 
                 Text(tirString)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(palette.ink)
                     .lineLimit(1)
@@ -270,7 +357,7 @@ extension MainChartView {
     /// the plot column. Drawn behind the chart stack; nothing here sits inside a plot area.
     private func detailedChartChrome(_ palette: DetailedPalette) -> some View {
         let layout = detailedLayout
-        let iobScale = state.detailedIobScale
+        let iobScale = layout.scales.iob
         let cob = state.enactedAndNonEnactedDeterminations.first?.cob ?? 0
         let insulinUnit = String(localized: " U", comment: "Insulin unit")
         let rateUnit = String(localized: " U/hr", comment: "Unit per hour with space")
@@ -297,7 +384,7 @@ extension MainChartView {
                 value: (Formatter.integerFormatter.string(from: NSNumber(value: cob)) ?? "0")
                     + String(localized: " g", comment: "gram of carbs"),
                 tint: palette.carbs,
-                maxLabel: "\(Int(state.detailedCobMax))" + String(localized: " g", comment: "gram of carbs"),
+                maxLabel: "\(Int(layout.scales.cobMax))" + String(localized: " g", comment: "gram of carbs"),
                 zeroFraction: 1,
                 layout,
                 palette
@@ -310,7 +397,7 @@ extension MainChartView {
                     (Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) ?? "\($0)") + rateUnit
                 } ?? "--",
                 tint: palette.basal,
-                maxLabel: "\(Int(state.detailedBasalMax))" + rateUnit,
+                maxLabel: "\(Int(layout.scales.basalMax))" + rateUnit,
                 zeroFraction: 1,
                 layout,
                 palette
@@ -324,27 +411,29 @@ extension MainChartView {
     @ViewBuilder private func detailedEventBandLabels(_ palette: DetailedPalette) -> some View {
         let plotWidth = DetailedChartLayout.plotWidth(screenWidth: geo.size.width)
         let nowX = CGFloat(Date.now.timeIntervalSince(scrollPosition) / visibleSeconds) * plotWidth
-        let y = DetailedChartLayout.eventBandHeight / 2 - 1
+        // top of the band, clear of the first glucose label below it
+        let y: CGFloat = 7
 
         // hidden near the right edge, where it would run into the unit label
-        if nowX >= 0, nowX <= plotWidth - 40 {
+        if nowX >= 0, nowX <= plotWidth - 64 {
             Text(String(
                 localized: "chart.now",
                 defaultValue: "now",
                 comment: "Detailed Home chart: label of the current time line"
             ))
-                .font(.system(size: 9.5, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .frame(width: 60, alignment: .leading)
                 .position(x: DetailedChartLayout.plotLeading + nowX + 7 + 30, y: y)
                 .accessibilityHidden(true)
         }
-        axisLabel(units.rawValue, size: 9, tint: palette.muted, isEmphasized: false)
+        axisLabel(units.rawValue, size: 13, tint: palette.muted, isEmphasized: false)
             .position(x: axisLabelCenterX, y: y)
     }
 
-    /// Round values and the dashed high / low thresholds, beside the glucose plot.
+    /// Round values (the plot top included) and the dashed high / low thresholds, beside the
+    /// glucose plot.
     private func detailedGlucoseAxis(_ layout: DetailedChartLayout, _ palette: DetailedPalette) -> some View {
         let domain = paddedGlucoseYDomain
         let span = max(Double(truncating: (domain.upperBound - domain.lowerBound) as NSNumber), 1)
@@ -368,11 +457,11 @@ extension MainChartView {
         let ticks: [(text: String, y: CGFloat, tint: Color?)] = DetailedChartLayout.glucoseTicks(in: domain, units: units)
             .map { (text: label($0), y: y($0), tint: Color?.none) }
             .filter { tick in
-                tick.y >= 6 && tick.y <= layout.glucose - 6 && thresholds.allSatisfy { abs($0.y - tick.y) >= 14 }
+                tick.y >= 0 && tick.y <= layout.glucose - 6 && thresholds.allSatisfy { abs($0.y - tick.y) >= 15 }
             }
 
         return ForEach(Array((ticks + thresholds).enumerated()), id: \.offset) { _, tick in
-            axisLabel(tick.text, size: 10.5, tint: tick.tint ?? palette.muted, isEmphasized: tick.tint != nil)
+            axisLabel(tick.text, size: 13, tint: tick.tint ?? palette.muted, isEmphasized: tick.tint != nil)
                 .position(x: axisLabelCenterX, y: DetailedChartLayout.eventBandHeight + tick.y)
         }
     }
@@ -391,9 +480,9 @@ extension MainChartView {
     ) -> some View {
         let top = layout.stripTop(index)
         let plotTop = top + DetailedChartLayout.stripTitleHeight
-        let maxY = plotTop + 4
+        let maxY = plotTop + 5
         // the zero label sits just above the zero line, never on the top label
-        let zeroY = max(plotTop + DetailedChartLayout.stripPlotHeight * CGFloat(zeroFraction) - 4, maxY + 11)
+        let zeroY = max(plotTop + DetailedChartLayout.stripPlotHeight * CGFloat(zeroFraction) - 4.5, maxY + 14)
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
@@ -406,11 +495,11 @@ extension MainChartView {
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(palette.ink)
                 Spacer(minLength: 4)
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(tint)
             }
@@ -419,12 +508,12 @@ extension MainChartView {
             .padding(.leading, DetailedChartLayout.plotLeading)
             .padding(.trailing, DetailedChartLayout.axisLabelTrailing)
             .frame(width: geo.size.width, height: 18)
-            .offset(y: top + 4)
+            .offset(y: top + 5)
             .accessibilityElement(children: .combine)
 
-            axisLabel(maxLabel, size: 9, tint: palette.muted, isEmphasized: false)
+            axisLabel(maxLabel, size: 13, tint: palette.muted, isEmphasized: false)
                 .position(x: axisLabelCenterX, y: maxY)
-            axisLabel("0", size: 9, tint: palette.muted, isEmphasized: false)
+            axisLabel("0", size: 13, tint: palette.muted, isEmphasized: false)
                 .position(x: axisLabelCenterX, y: zeroY)
         }
     }
@@ -498,7 +587,7 @@ extension MainChartCanvas {
         return ZStack(alignment: .topLeading) {
             ForEach(hourAxisMarks(over: windowStart ... windowEnd), id: \.self) { date in
                 Text(date.formatted(.dateTime.hour(.defaultDigits(amPM: .narrow))))
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(palette.muted)
                     .fixedSize()
@@ -556,6 +645,11 @@ extension MainChartCanvas {
         }
     }
 
+    /// Scales handed over by the shell with the layout.
+    private var stripScales: DetailedChartScales {
+        detailedLayout?.scales ?? DetailedChartScales()
+    }
+
     private var projectionStart: Date {
         state.enactedAndNonEnactedDeterminations.first?.deliverAt ?? state.timerDate
     }
@@ -574,7 +668,7 @@ extension MainChartCanvas {
     func detailedIobChart(_ palette: DetailedPalette) -> some View {
         let latestIob = state.enactedAndNonEnactedDeterminations.first?.iob?.doubleValue
         let points = projection(state.iobProjection, anchorValue: latestIob)
-        let scale = state.detailedIobScale
+        let scale = stripScales.iob
 
         return Chart {
             drawPaneGrid(scale, palette: palette)
@@ -613,7 +707,7 @@ extension MainChartCanvas {
     func detailedCobChart(_ palette: DetailedPalette) -> some View {
         let latestCob = state.enactedAndNonEnactedDeterminations.first.map { Double($0.cob) }
         let points = projection(state.cobProjection, anchorValue: latestCob)
-        let scale = 0 ... state.detailedCobMax
+        let scale = 0 ... stripScales.cobMax
 
         return Chart {
             drawPaneGrid(scale, palette: palette)
@@ -655,7 +749,7 @@ extension MainChartCanvas {
         let tempBasals = preparedTempBasals.filter { $0.end >= windowStart && $0.start <= windowEnd }
         let profiles = basalProfiles.filter { ($0.endDate ?? state.endMarker) >= windowStart && $0.startDate <= windowEnd }
         let suspensions = suspensionIntervals().filter { $0.end >= windowStart && $0.start <= windowEnd }
-        let scale = 0 ... state.detailedBasalMax
+        let scale = 0 ... stripScales.basalMax
 
         return Chart {
             drawPaneGrid(scale, palette: palette)
@@ -764,7 +858,8 @@ struct DetailedTreatmentMarks: ChartContent {
 // MARK: - Forecast cone
 
 /// The stock forecast cone (same min/max bounds and 2.5 h horizon), drawn stronger for the
-/// detailed cards and with a dashed line through its middle so the expected path reads at a glance.
+/// detailed cards: a 40 % fill with marked edges and a dashed line through its middle so the
+/// expected path reads at a glance.
 struct DetailedForecastCone: ChartContent {
     let minForecast: [Int]
     let maxForecast: [Int]
@@ -791,7 +886,25 @@ struct DetailedForecastCone: ChartContent {
                     yStart: .value("Min Value", lower),
                     yEnd: .value("Max Value", upper)
                 )
-                .foregroundStyle(palette.insulin.opacity(0.3))
+                .foregroundStyle(palette.insulin.opacity(0.4))
+                .interpolationMethod(.catmullRom)
+
+                LineMark(
+                    x: .value("Time", date),
+                    y: .value("Upper", upper),
+                    series: .value("Series", "ForecastUpper")
+                )
+                .foregroundStyle(palette.insulin.opacity(0.78))
+                .lineStyle(StrokeStyle(lineWidth: 1))
+                .interpolationMethod(.catmullRom)
+
+                LineMark(
+                    x: .value("Time", date),
+                    y: .value("Lower", lower),
+                    series: .value("Series", "ForecastLower")
+                )
+                .foregroundStyle(palette.insulin.opacity(0.78))
+                .lineStyle(StrokeStyle(lineWidth: 1))
                 .interpolationMethod(.catmullRom)
 
                 LineMark(

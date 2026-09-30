@@ -61,13 +61,13 @@ struct DetailedPumpCard: View {
             VStack(spacing: 4) {
                 podGlyph
                 Text(verbatim: name.localizedCaseInsensitiveContains("dash") ? "DASH" : "POD")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(palette.muted)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(name)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.system(size: 14.5, weight: .semibold))
                     .foregroundStyle(palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -126,7 +126,7 @@ struct DetailedPumpCard: View {
     @ViewBuilder private var statusLine: some View {
         if let pumpStatusHighlightMessage {
             Label(pumpStatusHighlightMessage.replacingOccurrences(of: "\n", with: " "), systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(palette.carbs)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -139,7 +139,7 @@ struct DetailedPumpCard: View {
                     format: String(localized: "Communication %@ ago", comment: "Detailed Home pump card: last pump communication"),
                     TimeAgoFormatter.minutesAgo(from: lastCommsDate)
                 ))
-                .font(.system(size: 10.5, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -152,11 +152,11 @@ struct DetailedPumpCard: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundStyle(palette.muted)
                 Spacer(minLength: 4)
                 Text(value)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(color)
             }
             .lineLimit(1)
