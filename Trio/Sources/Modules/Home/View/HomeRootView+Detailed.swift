@@ -1,9 +1,10 @@
 import SwiftUI
 
-// Detailed Home style (`HomeChartStyle.detailed`): a large glucose value, loop and pump cards,
-// a row with IOB / COB / basal / eventual glucose, then one chart card. Like the stock Home it
-// fits the screen without scrolling: the glucose plot takes what the fixed rows leave. Kept
-// apart from the stock header so the `.trio` layout stays as upstream ships it. Presentation only.
+// Detailed Home style (`HomeChartStyle.detailed`): a large glucose value with delta and
+// eventual glucose, loop and pump cards, a row with IOB / COB / basal, then one chart card.
+// Like the stock Home it fits the screen without scrolling: the glucose plot takes what the
+// fixed rows leave. Kept apart from the stock header so the `.trio` layout stays as upstream
+// ships it. Presentation only.
 
 enum DetailedHomeLayout {
     static let topPadding: CGFloat = 0
@@ -11,8 +12,8 @@ enum DetailedHomeLayout {
     static let glucoseRowHeight: CGFloat = 64
     /// Between the glucose row and the loop and pump cards.
     static let glucoseRowSpacing: CGFloat = 8
-    static let cardHeight: CGFloat = 82
-    static let statsHeight: CGFloat = 50
+    static let cardHeight: CGFloat = 90
+    static let statsHeight: CGFloat = 52
     static let horizontalPadding: CGFloat = 16
     static let cardSpacing: CGFloat = 10
     static let sectionSpacing: CGFloat = 10
@@ -141,6 +142,7 @@ extension Home.RootView {
             cgmStatus: state.cgmDisplayState,
             highGlucose: state.highGlucose,
             lowGlucose: state.lowGlucose,
+            eventualGlucose: (state.enactedAndNonEnactedDeterminations.first?.eventualBG).map { $0 as Decimal },
             timerDate: state.timerDate
         )
         // same gestures as the stock glucose bobble
@@ -225,7 +227,7 @@ extension Home.RootView {
 
     // MARK: - Stats card
 
-    /// IOB / COB / basal / eventual glucose in four equal columns.
+    /// IOB / COB / basal in three equal columns.
     private var detailedStatsCard: some View {
         let palette = DetailedPalette(colorScheme)
         let determination = state.enactedAndNonEnactedDeterminations.first
@@ -233,9 +235,6 @@ extension Home.RootView {
         let cob = Formatter.integerFormatter.string(from: NSNumber(value: determination?.cob ?? 0)) ?? "0"
         let basal = (state.tempBasals.last?.tempBasal?.rate).map {
             Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) ?? "\($0)"
-        }
-        let eventual = (determination?.eventualBG).map {
-            state.units == .mgdL ? ($0 as Decimal).description : ($0 as Decimal).formattedAsMmolL
         }
 
         return HStack(spacing: 0) {
@@ -262,14 +261,6 @@ extension Home.RootView {
                 tint: palette.basal,
                 palette
             )
-            statDivider(palette)
-            statColumn(
-                String(localized: "Eventual", comment: "Detailed Home stats row title"),
-                value: eventual ?? "--",
-                unit: state.units.rawValue,
-                tint: palette.ink,
-                palette
-            )
         }
         .frame(height: DetailedHomeLayout.statsHeight)
         .detailedCard(palette, cornerRadius: 15)
@@ -285,7 +276,7 @@ extension Home.RootView {
     ) -> some View {
         VStack(spacing: 2) {
             Text(title)
-                .font(.system(size: 11.5, weight: .medium))
+                .font(.system(size: 13.5, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -295,7 +286,7 @@ extension Home.RootView {
                     .monospacedDigit()
                     .foregroundStyle(tint)
                 Text(unit)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(palette.muted)
             }
             .lineLimit(1)
@@ -401,6 +392,8 @@ struct DetailedGlucoseRow: View {
     let cgmStatus: CgmDisplayState?
     let highGlucose: Decimal
     let lowGlucose: Decimal
+    /// eventual glucose of the latest determination, mg/dL
+    let eventualGlucose: Decimal?
     /// ticks the minutes-ago caption
     let timerDate: Date
 
@@ -424,6 +417,24 @@ struct DetailedGlucoseRow: View {
         formatter.maximumFractionDigits = units == .mmolL ? 1 : 0
         formatter.positivePrefix = "+"
         return formatter.string(from: delta as NSNumber)
+    }
+
+    private var predictedCaption: String {
+        String(
+            localized: "detailed.predicted",
+            defaultValue: "predicted",
+            comment: "Detailed Home glucose row: caption above the eventual glucose forecast"
+        )
+    }
+
+    /// Eventual glucose in the display unit, colored by the same high / low thresholds as
+    /// the glucose value (ink when in range).
+    private var eventualString: (text: String, color: Color)? {
+        guard let eventualGlucose else { return nil }
+        let palette = DetailedPalette(colorScheme)
+        let color = eventualGlucose < lowGlucose ? palette.low : (eventualGlucose > highGlucose ? palette.high : palette.ink)
+        let text = units == .mgdL ? eventualGlucose.description : eventualGlucose.formattedAsMmolL
+        return (text, color)
     }
 
     /// Trend arrow symbol and how many times to repeat it (double/triple arrows).
@@ -485,22 +496,38 @@ struct DetailedGlucoseRow: View {
                             .foregroundStyle(palette.ink)
                     }
                     Text(units.rawValue)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(palette.muted)
+                }
+                .fixedSize()
+
+                if let eventual = eventualString {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(predictedCaption)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(palette.muted)
+                        Text(eventual.text)
+                            .font(.system(size: 19, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(eventual.color)
+                    }
+                    .fixedSize()
                 }
 
                 Spacer(minLength: 4)
 
                 Text(TimeAgoFormatter.minutesAgo(from: reading.date))
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(palette.muted)
                     .lineLimit(1)
+                    .fixedSize()
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(
                 [
                     String(localized: "Glucose", comment: "Accessibility: glucose label") + " \(value) \(units.rawValue)",
                     deltaString.map { String(localized: "delta", comment: "Accessibility: glucose delta") + " \($0)" },
+                    eventualString.map { predictedCaption + " \($0.text) \(units.rawValue)" },
                     TimeAgoFormatter.minutesAgoAccessible(from: reading.date)
                 ].compactMap { $0 }.joined(separator: ", ")
             ))
@@ -590,7 +617,7 @@ struct DetailedLoopCard: View {
                         .foregroundStyle(color)
                 } else if let minutesSinceLoop {
                     Text(verbatim: "\(minutesSinceLoop)\u{2032}")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(color)
                 }
             }
@@ -598,12 +625,12 @@ struct DetailedLoopCard: View {
             .padding(.bottom, 3)
 
             Text(dosingMode.displayName)
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(.system(size: 14.5, weight: .semibold))
                 .foregroundStyle(palette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(caption)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
