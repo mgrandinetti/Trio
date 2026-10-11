@@ -45,7 +45,9 @@ struct TrioWatchComplicationEntryView: View {
     var body: some View {
         switch family {
         case .accessoryCircular: circular
-        case .accessoryCorner: corner
+        #if os(watchOS)
+            case .accessoryCorner: corner
+        #endif
         case .accessoryRectangular: rectangular
         case .accessoryInline: inline
         default: unavailable
@@ -67,18 +69,20 @@ struct TrioWatchComplicationEntryView: View {
         .widgetBackground(backgroundView: Color.clear)
     }
 
-    private var corner: some View {
-        Text(snapshot?.glucose ?? "--")
-            .widgetCurvesContent()
-            .widgetLabel {
-                if let snapshot {
-                    Text("\(trendSymbol(snapshot.trend)) \(snapshot.delta ?? snapshot.units ?? "")")
-                } else {
-                    Text("CGM non aggiornato")
+    #if os(watchOS)
+        private var corner: some View {
+            Text(snapshot?.glucose ?? "--")
+                .widgetCurvesContent()
+                .widgetLabel {
+                    if let snapshot {
+                        Text("\(trendSymbol(snapshot.trend)) \(snapshot.delta ?? snapshot.units ?? "")")
+                    } else {
+                        Text("CGM non aggiornato")
+                    }
                 }
-            }
-            .widgetBackground(backgroundView: Color.clear)
-    }
+                .widgetBackground(backgroundView: Color.clear)
+        }
+    #endif
 
     private var rectangular: some View {
         HStack(spacing: 7) {
@@ -181,7 +185,15 @@ private extension Color {
         }
         .configurationDisplayName("Trio glicemia")
         .description("Glicemia, andamento e grafico CGM più recente")
-        .supportedFamilies([.accessoryInline, .accessoryCorner, .accessoryCircular, .accessoryRectangular])
+        .supportedFamilies(supportedFamilies)
+    }
+
+    private var supportedFamilies: [WidgetFamily] {
+        #if os(watchOS)
+            return [.accessoryInline, .accessoryCorner, .accessoryCircular, .accessoryRectangular]
+        #else
+            return [.accessoryInline, .accessoryCircular, .accessoryRectangular]
+        #endif
     }
 }
 

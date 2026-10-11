@@ -233,8 +233,8 @@ extension Home.RootView {
         let determination = state.enactedAndNonEnactedDeterminations.first
         let iob = Formatter.decimalFormatterWithTwoFractionDigits.string(from: state.currentIOB as NSNumber) ?? "0"
         let cob = Formatter.integerFormatter.string(from: NSNumber(value: determination?.cob ?? 0)) ?? "0"
-        let basal = (state.tempBasals.last?.tempBasal?.rate).map {
-            Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) ?? "\($0)"
+        let basal = state.detailedBasalRate.map {
+            Formatter.decimalFormatterWithTwoFractionDigits.string(from: NSDecimalNumber(decimal: $0)) ?? "\($0)"
         }
 
         return HStack(spacing: 0) {
