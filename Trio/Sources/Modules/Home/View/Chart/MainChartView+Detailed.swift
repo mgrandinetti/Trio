@@ -169,6 +169,19 @@ struct DetailedChartLayout: Equatable {
     }
 }
 
+extension Home.StateModel {
+    /// Basal rate the pump delivers right now, from the stock resolution (`activeBasalDelivery`):
+    /// 0 while suspended, nil when there is no pump or nothing to report.
+    var detailedBasalRate: Decimal? {
+        switch activeBasalDelivery {
+        case .none: return nil
+        case .suspended: return 0
+        case let .scheduled(rate),
+             let .temp(rate): return rate
+        }
+    }
+}
+
 // MARK: - Shell (pinned, never scrolls horizontally)
 
 extension MainChartView {
@@ -393,9 +406,11 @@ extension MainChartView {
             detailedStripChrome(
                 2,
                 String(localized: "Basal Rate"),
-                value: (state.tempBasals.last?.tempBasal?.rate).map {
-                    (Formatter.decimalFormatterWithTwoFractionDigits.string(from: $0) ?? "\($0)") + rateUnit
-                } ?? "--",
+                value: state.activeBasalDelivery == .suspended
+                    ? String(localized: "Suspended", comment: "Basal delivery suspended on the pump")
+                    : state.detailedBasalRate.map {
+                        (Formatter.decimalFormatterWithTwoFractionDigits.string(from: NSDecimalNumber(decimal: $0)) ?? "\($0)") + rateUnit
+                    } ?? "--",
                 tint: palette.basal,
                 maxLabel: "\(Int(layout.scales.basalMax))" + rateUnit,
                 zeroFraction: 1,
